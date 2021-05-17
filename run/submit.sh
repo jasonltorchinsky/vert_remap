@@ -12,7 +12,7 @@
 
 #SBATCH --account=e3sm
 #SBATCH --mail-user=jason.torchinsky@wisc.edu
-#SBATCH --mail-type=all
+#SBATCH --mail-type=none
 
 # Set up for run
 
@@ -24,5 +24,5 @@ module load PrgEnv-intel
 build_dir=../build
 
 echo '-- Running vertical remap code...'
-$build_dir/vert_remap nlev 10
+$build_dir/vert_remap nlev 1001
 

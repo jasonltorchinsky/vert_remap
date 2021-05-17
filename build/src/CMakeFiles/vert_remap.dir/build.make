@@ -90,6 +90,7 @@ vert_remap_EXTERNAL_OBJECTS =
 
 vert_remap: src/CMakeFiles/vert_remap.dir/main.F90.o
 vert_remap: src/CMakeFiles/vert_remap.dir/build.make
+vert_remap: src/utils_mod/libutils_mod.a
 vert_remap: src/vertremap_mod/libvertremap_mod.a
 vert_remap: src/CMakeFiles/vert_remap.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/global/homes/j/jlturner/practicum-2021/vert_remap/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking Fortran executable ../vert_remap"

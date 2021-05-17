@@ -192,6 +192,12 @@ CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 //Path to a program.
 XIAR:FILEPATH=/opt/intel/compilers_and_libraries_2019.3.199/linux/bin/intel64/xiar
 
+//The directory containing a CMake configuration file for netCDF-Fortran.
+netCDF-Fortran_DIR:PATH=netCDF-Fortran_DIR-NOTFOUND
+
+//Dependencies for target
+utils_mod_LIB_DEPENDS:STATIC=
+
 //Value Computed by CMake
 vert_remap_redux_BINARY_DIR:STATIC=/global/homes/j/jlturner/practicum-2021/vert_remap/build
 
@@ -306,7 +312,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=3
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=4
 //ADVANCED property for variable: CMAKE_OBJCOPY
 CMAKE_OBJCOPY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJDUMP

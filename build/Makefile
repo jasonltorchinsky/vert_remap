@@ -124,6 +124,19 @@ vert_remap/fast:
 .PHONY : vert_remap/fast
 
 #=============================================================================
+# Target rules for targets named utils_mod
+
+# Build rule for target.
+utils_mod: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 utils_mod
+.PHONY : utils_mod
+
+# fast build rule for target.
+utils_mod/fast:
+	$(MAKE) -f src/utils_mod/CMakeFiles/utils_mod.dir/build.make src/utils_mod/CMakeFiles/utils_mod.dir/build
+.PHONY : utils_mod/fast
+
+#=============================================================================
 # Target rules for targets named vertremap_mod
 
 # Build rule for target.
@@ -145,6 +158,7 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
 	@echo "... vert_remap"
+	@echo "... utils_mod"
 	@echo "... vertremap_mod"
 .PHONY : help
 

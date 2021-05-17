@@ -1,0 +1,76 @@
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! Module for output subroutines.
+! TO-DO: Add file meta data
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+module output_mod
+
+  use iso_fortran_env, only: int32, real64
+  use netcdf
+  use netcdf_utils_mod
+
+  implicit none
+
+  private
+
+  contains
+
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ! Initializes output file (pre-defined format), returns handle
+  ! TO-DO: - Add subroutine meta data
+  !        - var_dims only accepts one dimension per variable. This is okay
+  !          for the 1-D problem we are starting with, but may become a problem
+  !        - in the future.
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  subroutine netcdf_init_outfile(ndims, dim_names, dims, nvars, var_names, &
+    & var_types, var_dims, vars, outDir, outputFile)
+
+    use iso_fortran_env, only: int32
+    use netcdf
+
+    implicit none
+
+    integer(int32), intent(in) :: ndims, nvars
+    character(len=15), intent(in) :: dim_names(ndims)
+    character(len=15), intent(in) :: var_names(ndims)
+    integer(int32), intent(in) :: dims(ndims)
+    integer(int32), intent(in) :: var_types(nvars)
+    integer(int32), intent(in) :: var_dims(nvars)
+    real(real64), intent(in) :: vars(nvars)
+    character(len=100), intent(in) :: outDir
+    type(outfile), intent(inout) :: outputFile
+    integer(int32) :: ii
+
+    ! Create the output file.
+100 format (A, A, I0.7, A)
+    write(outputFile%fname, 100) trim(adjustl(outDir)), '/out_', nlev, '.nc' 
+
+    call netcdf_err_check( nf90_create(outputFile%fname, nf90_clobber, &
+      & outputFile%id) )
+
+    ! Define dimensions for file:
+    outputFile%ndims = ndims
+    allocate(outputFile%dim_ids(ndims))
+    do ii = 1, ndims
+      call netcdf_err_check( nf90_def_dim(outputFile%id, &
+        & trim(adjustl(dim_names(ii))), dims(ii), &
+        & outputFile%dim_ids(ii)) )
+    end do
+
+    ! Define variables for the file
+    outputFile%nVars = nvars
+    allocate(outputFile%var_ids(nvars))
+    do ii = 1, nvars
+      call netcdf_err_check( nf90_def_var(outputFile%id, &
+        & trim(adjustl(var_names(ii)), var_types(ii), &
+        & outputFile%dim_ids(var_dims(ii)), outputFile%var_ids(1)) )
+    end do
+    
+    ! Exit define mode, i.e., tell netCDF we are done defining meta-data.
+    call netcdf_err_check( nf90_enddef(outputFile%id) )
+
+  end subroutine netcdf_init_outfile
+
+end module output_mod
