@@ -39,6 +39,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
+  include("/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/output_mod/cmake_install.cmake")
   include("/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/utils_mod/cmake_install.cmake")
   include("/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/vertremap_mod/cmake_install.cmake")
 

@@ -1,1 +1,1 @@
-/opt/cray/pe/craype/2.6.2/bin/ftn   -g CMakeFiles/vert_remap.dir/main.F90.o  -o ../vert_remap utils_mod/libutils_mod.a vertremap_mod/libvertremap_mod.a 
+/opt/cray/pe/craype/2.6.2/bin/ftn   -g CMakeFiles/vert_remap.dir/main.F90.o  -o ../vert_remap output_mod/liboutput_mod.a utils_mod/libutils_mod.a vertremap_mod/libvertremap_mod.a 

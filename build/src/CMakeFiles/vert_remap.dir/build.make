@@ -90,6 +90,7 @@ vert_remap_EXTERNAL_OBJECTS =
 
 vert_remap: src/CMakeFiles/vert_remap.dir/main.F90.o
 vert_remap: src/CMakeFiles/vert_remap.dir/build.make
+vert_remap: src/output_mod/liboutput_mod.a
 vert_remap: src/utils_mod/libutils_mod.a
 vert_remap: src/vertremap_mod/libvertremap_mod.a
 vert_remap: src/CMakeFiles/vert_remap.dir/link.txt

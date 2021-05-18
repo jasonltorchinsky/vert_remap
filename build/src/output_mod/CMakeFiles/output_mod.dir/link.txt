@@ -1,0 +1,2 @@
+/usr/bin/ar qc liboutput_mod.a  CMakeFiles/output_mod.dir/output_mod.F90.o
+/usr/bin/ranlib liboutput_mod.a

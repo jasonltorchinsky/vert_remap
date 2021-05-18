@@ -1,0 +1,3 @@
+add_library(output_mod
+            output_mod.F90
+	   )

@@ -17,9 +17,9 @@ module utils_mod
      character(len=50) :: fname ! File name
      integer(int32) :: id ! NetCDF ID 
      integer(int32) :: ndims ! Number of dimensions
-     integer(int32), allocatable :: dim_ids ! Dimension netCDF IDs
+     integer(int32), allocatable :: dim_ids(:) ! Dimension netCDF IDs
      integer(int32) :: nvars ! Number of variables
-     integer(int32), allocatable :: var_ids ! Variable netCDF Ids
+     integer(int32), allocatable :: var_ids(:) ! Variable netCDF Ids
   end type outfile
 
   ! Visible subroutines
@@ -36,19 +36,18 @@ module utils_mod
   public :: netcdf_init_outfile
   interface netcdf_init_outfile
      module subroutine netcdf_init_outfile_sbr(ndims, dim_names, &
-          & dims, nvars, var_names, var_types, var_dims, vars, &
-          & outDir, outputFile)
+          & dims, nvars, var_names, var_types, var_dims, &
+          & outDir, fname, outputFile)
        use iso_fortran_env, only: int32
        use netcdf
        implicit none
        integer(int32), intent(in) :: ndims, nvars
        character(len=15), intent(in) :: dim_names(ndims)
-       character(len=15), intent(in) :: var_names(ndims)
+       character(len=15), intent(in) :: var_names(nvars)
        integer(int32), intent(in) :: dims(ndims)
        integer(int32), intent(in) :: var_types(nvars)
        integer(int32), intent(in) :: var_dims(nvars)
-       real(real64), intent(in) :: vars(nvars)
-       character(len=100), intent(in) :: outDir
+       character(len=50), intent(in) :: outDir, fname
        type(outfile), intent(inout) :: outputFile
      end subroutine netcdf_init_outfile_sbr
   end interface netcdf_init_outfile

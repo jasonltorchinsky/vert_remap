@@ -5,14 +5,14 @@
 
 submodule (utils_mod) netcdf_utils_mod
 
-  contains
+contains
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Check netCDF calls for errors.
   ! TO-DO: Add subroutine metadata.
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  subroutine netcdf_err_check_sbr(statusFlag)
+  module subroutine netcdf_err_check_sbr(statusFlag)
 
     use iso_fortran_env, only: int32
     use netcdf
@@ -22,8 +22,9 @@ submodule (utils_mod) netcdf_utils_mod
     integer(int32), intent(in) :: statusFlag
 
     if (statusFlag .ne. nf90_noerr) then
-      print *, trim(nf90_strerror(statusFlag))
-      error stop '  Stopped due to netCDF error.'
+       print *, 'NetCDF error code: ', statusFlag
+       print *, trim(nf90_strerror(statusFlag))
+       error stop '  Stopped due to netCDF error.'
     end if
 
   end subroutine netcdf_err_check_sbr
@@ -36,8 +37,8 @@ submodule (utils_mod) netcdf_utils_mod
   !        - in the future.
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  subroutine netcdf_init_outfile_sbr(ndims, dim_names, dims, nvars, &
-    & var_names, var_types, var_dims, vars, outDir, outputFile)
+  module subroutine netcdf_init_outfile_sbr(ndims, dim_names, dims, nvars, &
+       & var_names, var_types, var_dims, outDir, fname, outputFile)
 
     use iso_fortran_env, only: int32, real64
     use netcdf
@@ -46,40 +47,40 @@ submodule (utils_mod) netcdf_utils_mod
 
     integer(int32), intent(in) :: ndims, nvars
     character(len=15), intent(in) :: dim_names(ndims)
-    character(len=15), intent(in) :: var_names(ndims)
+    character(len=15), intent(in) :: var_names(nvars)
     integer(int32), intent(in) :: dims(ndims)
     integer(int32), intent(in) :: var_types(nvars)
     integer(int32), intent(in) :: var_dims(nvars)
-    real(real64), intent(in) :: vars(nvars)
-    character(len=100), intent(in) :: outDir
+    character(len=50), intent(in) :: outDir, fname
     type(outfile), intent(inout) :: outputFile
     integer(int32) :: ii
 
     ! Create the output file.
-100 format (A, A, I0.7, A)
-    write(outputFile%fname, 100) trim(adjustl(outDir)), '/out_', nlev, '.nc' 
+100 format (A, A, A)
+    write(outputFile%fname, 100) trim(adjustl(outDir)), '/', &
+         & trim(adjustl(fname))
 
-    call netcdf_err_check_sbr( nf90_create(outputFile%fname, nf90_clobber, &
-      & outputFile%id) )
+    call netcdf_err_check_sbr( nf90_create(trim(adjustl(outputFile%fname)), &
+         & nf90_clobber, outputFile%id) )
 
     ! Define dimensions for file:
     outputFile%ndims = ndims
     allocate(outputFile%dim_ids(ndims))
     do ii = 1, ndims
-      call netcdf_err_check_sbr( nf90_def_dim(outputFile%id, &
-        & trim(adjustl(dim_names(ii))), dims(ii), &
-        & outputFile%dim_ids(ii)) )
+       call netcdf_err_check_sbr( nf90_def_dim(outputFile%id, &
+            & trim(adjustl(dim_names(ii))), dims(ii), &
+            & outputFile%dim_ids(ii)) )
     end do
 
     ! Define variables for the file
     outputFile%nVars = nvars
     allocate(outputFile%var_ids(nvars))
     do ii = 1, nvars
-      call netcdf_err_check_sbr( nf90_def_var(outputFile%id, &
-        & trim(adjustl(var_names(ii))), var_types(ii), &
-        & outputFile%dim_ids(var_dims(ii)), outputFile%var_ids(1)) )
+       call netcdf_err_check_sbr( nf90_def_var(outputFile%id, &
+            & trim(adjustl(var_names(ii))), var_types(ii), &
+            & outputFile%dim_ids(var_dims(ii)), outputFile%var_ids(ii)) )
     end do
-    
+
     ! Exit define mode, i.e., tell netCDF we are done defining meta-data.
     call netcdf_err_check_sbr( nf90_enddef(outputFile%id) )
 
@@ -90,7 +91,7 @@ submodule (utils_mod) netcdf_utils_mod
   ! TO-DO: - Add subroutine meta-data.
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  subroutine netcdf_close_outfile_sbr(outputFile)
+  module subroutine netcdf_close_outfile_sbr(outputFile)
 
     use netcdf
 
@@ -98,7 +99,7 @@ submodule (utils_mod) netcdf_utils_mod
 
     type(outfile), intent(inout) :: outputFile
 
-    call nf90_err_check_sbr( nf90_close(outputFile%id) )
+    call netcdf_err_check_sbr( nf90_close(outputFile%id) )
 
     deallocate(outputFile%dim_ids)
     deallocate(outputFile%var_ids)

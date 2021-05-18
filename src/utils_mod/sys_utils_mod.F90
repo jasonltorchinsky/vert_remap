@@ -4,14 +4,13 @@
 
 submodule (utils_mod) sys_utils_mod
 
-
-  contains
+contains
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Makes a subdirectory.
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  subroutine mkdir_sbr(dirName)
+  module subroutine mkdir_sbr(dirName)
 
     implicit none
 

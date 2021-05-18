@@ -5,72 +5,176 @@
 
 module output_mod
 
-  use iso_fortran_env, only: int32, real64
   use netcdf
-  use netcdf_utils_mod
-
-  implicit none
+  use utils_mod
 
   private
 
-  contains
+  public :: netcdf_add_metadata
+  public :: netcdf_write_output
+
+contains
 
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ! Initializes output file (pre-defined format), returns handle
+  ! Adds metadata to the output file.
   ! TO-DO: - Add subroutine meta data
-  !        - var_dims only accepts one dimension per variable. This is okay
-  !          for the 1-D problem we are starting with, but may become a problem
-  !        - in the future.
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  subroutine netcdf_init_outfile(ndims, dim_names, dims, nvars, var_names, &
-    & var_types, var_dims, vars, outDir, outputFile)
+  subroutine netcdf_add_metadata(outputFile)
 
-    use iso_fortran_env, only: int32
     use netcdf
+    use utils_mod
 
     implicit none
 
-    integer(int32), intent(in) :: ndims, nvars
-    character(len=15), intent(in) :: dim_names(ndims)
-    character(len=15), intent(in) :: var_names(ndims)
-    integer(int32), intent(in) :: dims(ndims)
-    integer(int32), intent(in) :: var_types(nvars)
-    integer(int32), intent(in) :: var_dims(nvars)
-    real(real64), intent(in) :: vars(nvars)
-    character(len=100), intent(in) :: outDir
-    type(outfile), intent(inout) :: outputFile
-    integer(int32) :: ii
+    type(outfile), intent(in) :: outputFile
 
-    ! Create the output file.
-100 format (A, A, I0.7, A)
-    write(outputFile%fname, 100) trim(adjustl(outDir)), '/out_', nlev, '.nc' 
+    ! Go back into define mode.
+    call netcdf_err_check( nf90_redef(outputFile%id) )
 
-    call netcdf_err_check( nf90_create(outputFile%fname, nf90_clobber, &
-      & outputFile%id) )
+    ! Add metadata for each variable.
+    !! grid1
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(1), 'description', &
+         & 'original grid levels') )
 
-    ! Define dimensions for file:
-    outputFile%ndims = ndims
-    allocate(outputFile%dim_ids(ndims))
-    do ii = 1, ndims
-      call netcdf_err_check( nf90_def_dim(outputFile%id, &
-        & trim(adjustl(dim_names(ii))), dims(ii), &
-        & outputFile%dim_ids(ii)) )
-    end do
+    !! dp1
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(2), 'description', &
+         & 'original grid spacing') )
 
-    ! Define variables for the file
-    outputFile%nVars = nvars
-    allocate(outputFile%var_ids(nvars))
-    do ii = 1, nvars
-      call netcdf_err_check( nf90_def_var(outputFile%id, &
-        & trim(adjustl(var_names(ii)), var_types(ii), &
-        & outputFile%dim_ids(var_dims(ii)), outputFile%var_ids(1)) )
-    end do
-    
+    !! grid1_stg
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(3), 'description', &
+         & 'original grid cell centers') )
+
+    !! QOrig
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(4), 'description', &
+         & 'densities for original grid centers') )
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(4), 'units', &
+         & 'kg m^(-1)') )
+
+    !! QdpOrig
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(5), 'description', &
+         & 'masses for original grid centers') )
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(5), 'units', &
+         & 'kg') )
+
+    !! grid2
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(6), 'description', &
+         & 'new grid levels') )
+
+    !! dp2
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(7), 'description', &
+         & 'new grid spacing') )
+
+    !! grid2_stg
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(8), 'description', &
+         & 'new grid cell centers') )
+
+    !! QNew
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(9), 'description', &
+         & 'densities for new grid centers') )
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(9), 'units', &
+         & 'kg m^(-1)') )
+
+    !! QdpNew
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(10), 'description', &
+         & 'masses for original grid centers') )
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(10), 'units', &
+         & 'kg') )
+
+    !! QTrue
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(11), 'description', &
+         & 'true densities for new grid centers') )
+    call netcdf_err_check( nf90_put_att(outputFile%id, &
+         & outputFile%var_ids(11), 'units', &
+         & 'kg m^(-1)') )
+
     ! Exit define mode, i.e., tell netCDF we are done defining meta-data.
     call netcdf_err_check( nf90_enddef(outputFile%id) )
 
-  end subroutine netcdf_init_outfile
+  end subroutine netcdf_add_metadata
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ! Write output to file.
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  subroutine netcdf_write_output(nlev, ncell, grid1, dp1, grid1_stg, QOrig, &
+       & QdpOrig, grid2, dp2, grid2_stg, QNew, QdpNew, QTrue, outputFile)
+
+    use iso_fortran_env, only: int32, real64
+    use netcdf
+    use utils_mod
+
+    implicit none
+
+    integer(int32), intent(in) :: nlev, ncell
+    real(real64), intent(in) :: grid1(nlev), grid2(nlev)
+    real(real64), intent(in) :: dp1(ncell), grid1_stg(ncell), QOrig(ncell), &
+         & QdpOrig(ncell), dp2(ncell), grid2_stg(ncell), QNew(ncell), &
+         & QdpNew(ncell), QTrue(ncell)
+    type(outfile), intent(in) :: outputFile
+
+    ! Write each variable to file.
+    !! grid1
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(1), grid1) )
+
+    !! dp1
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(2), dp1) )
+
+    !! grid1_stg
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(3), grid1_stg) )
+
+    !! QOrig
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(4), QOrig) )
+
+    !! QdpOrig
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(5), QdpOrig) )
+
+    !! grid2
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(6), grid2) )
+
+    !! dp2
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(7), dp2) )
+
+    !! grid2_stg
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(8), grid2_stg) )
+
+    !! QNew
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(9), QNew) )
+
+    !! QdpNew
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(10), QdpNew) )
+
+    !! QTrue
+    call netcdf_err_check( nf90_put_var(outputFile%id, &
+         & outputFile%var_ids(11), QTrue) )
+
+
+  end subroutine netcdf_write_output
 
 end module output_mod

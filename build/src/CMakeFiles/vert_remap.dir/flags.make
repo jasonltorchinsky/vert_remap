@@ -6,5 +6,5 @@ Fortran_FLAGS = -g
 
 Fortran_DEFINES = 
 
-Fortran_INCLUDES = -I/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/utils_mod -I/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/vertremap_mod 
+Fortran_INCLUDES = -I/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/output_mod -I/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/utils_mod -I/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/vertremap_mod 
 

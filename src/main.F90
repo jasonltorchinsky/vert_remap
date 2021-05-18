@@ -7,6 +7,9 @@
 program vert_remap
 
   use iso_fortran_env, only: int32, real64
+  use netcdf
+  use output_mod
+  use utils_mod
   use vertremap_mod
 
   implicit none
@@ -22,14 +25,16 @@ program vert_remap
   real(real64), allocatable :: QOrig(:), QNew(:) ! Average density in each cell
   real(real64), allocatable :: QdpOrig(:), QdpNew(:) ! Mass in each cell
   real(real64), allocatable :: QTrue(:) ! True density on the transformed grid
+  type(outfile)             :: dataFile ! File we write the output to
+  character(len=50)         :: outdirName, outfileName ! Directory, file for
+                                                       ! output
   character(len=32)         :: arg ! Input argument from command line
   integer(int32)            :: ii ! counter for do loops
 
   ! Set default input values
-  ncell = 3
-  nlev = 4
+  ncell = 0
+  nlev = 0
   
-
   ! Read command line arguments
   do ii = 0, command_argument_count()
     call get_command_argument(ii, arg)
@@ -52,13 +57,15 @@ program vert_remap
   end do
 
   ! Check for input errors
-  if (ncell .eq. 3) ncell = nlev - 1 ! Assume ncell wasn't set first
-  if (nlev .eq. 4) nlev = ncell + 1 ! The assume nlev wasn't set
-  if (nlev - ncel .neq 1) then ! Too many/few cells for levels.
+  if (ncell .eq. 0) ncell = nlev - 1 ! Assume ncell wasn't set first
+  if (nlev .eq. 0) nlev = ncell + 1 ! The assume nlev wasn't set
+  if ((nlev - ncell) .ne. 1) then ! Too many/few cells for levels.
     print *, '  ISSUE: Inappropriate number of cells and levels...'
     print *, '  Assuming that the number of levels is correct.'
     ncell = nlev - 1
-  end if
+ end if
+
+ write(*,*) '~~ Runnning vert_remap with ncell = ', ncell
 
   ! Set up grids, these are the boundaries of the cells.
   allocate(grid1(nlev))
@@ -113,44 +120,29 @@ program vert_remap
   allocate(QTrue(ncell))
   do ii = 1, ncell
     QTrue(ii) = Q_func(grid2_stg(ii))
-  end do
-
-  ! Output information  
-100 format (A, f16.12)
-
-  ! Density
-  open(unit=1000, file='Q.txt')
-  write(1000, 100, advance='no') '{', QNew(1)
-  do ii = 2, ncell
-    write(1000, 100, advance='no') ',', QNew(ii)
-  end do
-  write(1000, '(A)') '}'
-
-  write(1000, 100, advance='no') '{', QTrue(1)
-  do ii = 2, ncell
-    write(1000, 100, advance='no') ',', QTrue(ii)
-  end do
-  write(1000, '(A)') '}'
-  close(1000)
-
-  ! Cell widths
-  open(unit=1001, file='dp.txt')
-  write(1001, 100, advance='no') '{', dp2(1)
-  do ii = 2, ncell
-    write(1001, 100, advance='no') ',', dp2(ii)
-  end do
-  write(1001, '(A)') '}'
-  close(1001)
-
-  ! Cell centers/staggered grid
-  open(unit=1002, file='grid_stg.txt')
-  write(1002, 100, advance='no') '{', grid2_stg(1)
-  do ii = 2, ncell
-    write(1002, 100, advance='no') ',', grid2_stg(ii)
-  end do
-  write(1002, '(A)') '}'
-
-  close(1002)
+ end do
+ 
+  ! Output information
+  outdirName = 'output' // repeat(' ', 44)
+  write(outfileName, '(A, I0.4, A)') 'out_', ncell, '.nc'
+  call mkdir(outdirName)
+  call netcdf_init_outfile(2, &
+       & ['ncell' // repeat(' ', 10), 'nlev' // repeat(' ', 11)], &
+       & [ncell, nlev], &
+       & 11, &
+       & ['grid1' // repeat(' ', 10), 'dp1' // repeat(' ', 12), &
+       &  'grid1_stg' // repeat(' ', 6), 'QOrig' // repeat(' ', 10), &
+       &  'QdpOrig' // repeat(' ', 8), 'grid2' // repeat(' ', 10), &
+       &  'dp2' // repeat(' ', 12), 'grid2_stg' // repeat(' ', 6), &
+       &  'QNew' // repeat(' ', 11), 'QdpNew' // repeat(' ', 9), &
+       &  'QTrue' // repeat(' ', 10)], &
+       & [(nf90_double, ii = 1, 11)], &
+       & [2, (1, ii = 2, 5), 2, (1, ii = 7, 11)], &
+       & outdirName, outfileName, dataFile)
+  call netcdf_add_metadata(dataFile)
+  call netcdf_write_output(nlev, ncell, grid1, dp1, grid1_stg, QOrig, &
+       & QdpOrig, grid2, dp2, grid2_stg, QNew, QdpNew, QTrue, dataFile)
+  call netcdf_close_outfile(dataFile)
 
   contains
 
