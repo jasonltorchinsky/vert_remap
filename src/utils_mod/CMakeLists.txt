@@ -6,8 +6,12 @@ add_library(utils_mod
            )
 
 # Find needed packages
-#find_package(netCDF-Fortran REQUIRED)
+if(OnCori)
 
-#target_link_libraries(utils_mod
-#                      PRIVATE netCDF::netcdff
-#                     )
+else()
+  find_package(netCDF-Fortran REQUIRED)
+
+  target_link_libraries(utils_mod
+                        PRIVATE netCDF::netcdff
+                       )
+endif()

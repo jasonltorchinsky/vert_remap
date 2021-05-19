@@ -49,7 +49,7 @@ program vert_remap
       print *, '  ncell: Number of cells (regions between levels).'
     case('ncell')
       call get_command_argument(ii + 1, arg)
-      read(arg, *), ncell
+      read(arg, *) ncell
     case('nlev')
       call get_command_argument(ii + 1, arg)
       read(arg, *) nlev
@@ -123,7 +123,7 @@ program vert_remap
  end do
  
   ! Output information
-  outdirName = 'output' // repeat(' ', 44)
+  outdirName = '../output' // repeat(' ', 41)
   write(outfileName, '(A, I0.4, A)') 'out_', ncell, '.nc'
   call mkdir(outdirName)
   call netcdf_init_outfile(2, &

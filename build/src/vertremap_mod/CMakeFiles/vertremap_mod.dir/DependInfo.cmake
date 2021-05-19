@@ -4,9 +4,11 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_Fortran
-  "/global/homes/j/jlturner/practicum-2021/vert_remap/src/vertremap_mod/vertremap_base.F90" "/global/homes/j/jlturner/practicum-2021/vert_remap/build/src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_base.F90.o"
+  "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/src/vertremap_mod/vertremap_base.F90" "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_base.F90.o"
   )
-set(CMAKE_Fortran_COMPILER_ID "Intel")
+set(CMAKE_Fortran_COMPILER_ID "GNU")
+set(CMAKE_Fortran_SUBMODULE_SEP "@")
+set(CMAKE_Fortran_SUBMODULE_EXT ".smod")
 
 # The include file search paths:
 set(CMAKE_Fortran_TARGET_INCLUDE_PATH

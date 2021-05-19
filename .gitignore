@@ -1,0 +1,13 @@
+# Ignore Emacs backup files
+*~
+
+# Ignore image and data files
+*.png
+*.nc
+
+# Ignore the __pycache__ directory from the tools scripts
+tools/__pycache__/**
+tools/plots/**
+
+# Ignore the build directory
+build/**
