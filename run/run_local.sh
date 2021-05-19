@@ -7,9 +7,9 @@ echo '-- Setting run variables...'
 run_dir=`pwd`
 build_dir=../build
 
-for cells in {1..10..1}
+for cells in {8..16..1}
 do
-    $build_dir/vert_remap ncell $((2**$cells))
+    $build_dir/vert_remap ncell $((2**$cells)) ogrid sqr tfunc sig
 done
 
 echo '-- Runs complete!'
