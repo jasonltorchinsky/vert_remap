@@ -52,7 +52,7 @@ program vert_remap
         print *, '  nlev: Number of grid levels (cell boundaries).'
         print *, '  ncell: Number of cells (regions between levels).'
         print *, '  ogrid: Form of original grid. Options: sqr (x^2),'
-        print *, '         cub (x^3), sig (sigmoid-ish).'
+        print *, '         cub (x^3), sig (sigmoid-ish), sin (sine).'
         print *, '  tfunc: Test density function. Options: exp (e^x),'
         print *, '         stp (step function), sig (sigmoid-ish).'
      case('ncell')
@@ -169,6 +169,7 @@ contains
     real(real64), intent(in) :: x ! In [0, 1]
     character(len=8)         :: ogrid
     real(real64)             :: y ! Should be in [0, 1]
+    real(real64)             :: pi_dp
 
     select case(trim(adjustl(ogrid)))
     case('sqr')
@@ -176,7 +177,10 @@ contains
     case('cub')
        y = x**3
     case('sig')
-       y = 1.0_real64/(1.0_real64 + exp(-20.0_real64*x))
+       y = 1.0_real64/(1.0_real64 + exp(-30.0_real64*(x-0.5_real64)))
+    case('sin')
+       pi_dp = 4.0_real64*atan(1.0_real64)
+       y = 0.5_real64 * (1 - cos(pi_dp * x))
     end select
 
 
@@ -201,7 +205,7 @@ contains
           y = 1.0_real64
        end if
     case('sig')
-       y = 1.0_real64/(1.0_real64 + exp(-20.0_real64*x))
+       y = 1.0_real64/(1.0_real64 + exp(-30.0_real64*(x-0.5_real64)))
     end select
 
   end function Q_func
