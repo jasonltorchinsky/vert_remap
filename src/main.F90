@@ -18,6 +18,11 @@ program vert_remap
   ! each grid
   character(len=8)          :: ogrid, tfunc ! Form of original grid and test
   ! function
+  integer(int32)            :: lim ! Turn limiter on (10) or off (11)
+  character(len=3)          :: lim_str ! String corresponding to limiter on
+  ! or off
+  integer(int32)            :: curr_time(8) ! Current time
+  integer(int32)            :: seed ! Seed for RNG
   real(real64), allocatable :: dp1(:), dp2(:) ! Grid spacings for each grid
   real(real64), allocatable :: grid1(:), grid2(:) ! Grid at cell boundaries
   ! (0, ..., H)
@@ -38,7 +43,14 @@ program vert_remap
   nlev = 0
   ogrid = 'sqr'
   tfunc = 'exp'
-
+  lim = 10
+  lim_str = 'on'
+  call date_and_time(VALUES=curr_time)
+  seed = 0_int32
+  do ii = 4, 8
+     seed = seed + curr_time(ii)
+  end do
+  
   ! Read command line arguments
   do ii = 0, command_argument_count()
      call get_command_argument(ii, arg)
@@ -54,7 +66,10 @@ program vert_remap
         print *, '  ogrid: Form of original grid. Options: sqr (x^2),'
         print *, '         cub (x^3), sig (sigmoid-ish), sin (sine).'
         print *, '  tfunc: Test density function. Options: exp (e^x),'
-        print *, '         stp (step function), sig (sigmoid-ish).'
+        print *, '         stp (step function), sig (sigmoid-ish),'
+        print *, '         wdg (wedge).'
+        print *, '  lim: Turn limiter on ("on") or off ("off").'
+        print *, '  seed: Seed for RNG.'
      case('ncell')
         call get_command_argument(ii + 1, arg)
         read(arg, *) ncell
@@ -65,6 +80,16 @@ program vert_remap
         call get_command_argument(ii + 1, ogrid)
      case('tfunc')
         call get_command_argument(ii + 1, tfunc)
+     case('lim')
+        call get_command_argument(ii + 1, lim_str)
+        if (lim_str .eq. 'on') then
+           lim = 10
+        else
+           lim = 11
+        end if
+     case('seed')
+        call get_command_argument(ii + 1, arg)
+        read(arg, *) seed
      end select
   end do
 
@@ -77,6 +102,8 @@ program vert_remap
      ncell = nlev - 1
   end if
 
+  call rand_init(seed)
+
   write(*,*) '~~ Runnning vert_remap with ncell = ', ncell
 
   ! Set up grids, these are the boundaries of the cells.
@@ -85,7 +112,7 @@ program vert_remap
 
   do ii = 1, nlev ! Fill in grids
      grid2(ii) = real(ii - 1, real64)/real(nlev - 1, real64) ! Target, uniform
-     grid1(ii) = grid1_func(grid2(ii), ogrid) ! Source, non-uniform
+     grid1(ii) = grid1_func(grid2(ii), ogrid, nlev) ! Source, non-uniform
   end do ! NOTE: it would be more efficient to split this loop, but since this
   ! is a small 1-D problem, we leave it like this for readability.
   ! We do this for a few loops here.
@@ -120,7 +147,7 @@ program vert_remap
   ! Remap Qdp to grid 1
   allocate(QdpNew(ncell)) ! Remap is in-place, so we make a new array.
   QdpNew = QdpOrig
-  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, 10)
+  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, 11)
 
   ! Get density from mass
   allocate(QNew(ncell))
@@ -136,9 +163,9 @@ program vert_remap
 
   ! Output information
   outdirName = '../output' // repeat(' ', 41)
-100 format (A, A, A, A, I0.8, A)
+100 format (A, A, A, A, I0.8, A, A, A)
   write(outfileName, 100) trim(adjustl(ogrid)), '_', trim(adjustl(tfunc)), &
-       & '_', ncell, '.nc'
+       & '_', ncell, '_', trim(adjustl(lim_str)), '.nc'
   call mkdir(outdirName)
   call netcdf_init_outfile(2, &
        & ['ncell' // repeat(' ', 10), 'nlev' // repeat(' ', 11)], &
@@ -162,14 +189,17 @@ contains
 
   ! Function to get the grid points for grid 1 (source) from 
   ! grid 2 (target, uniform)
-  function grid1_func(x, ogrid) result(y)
+  function grid1_func(x, ogrid, nlev) result(y)
 
     implicit none
 
-    real(real64), intent(in) :: x ! In [0, 1]
-    character(len=8)         :: ogrid
-    real(real64)             :: y ! Should be in [0, 1]
-    real(real64)             :: pi_dp
+    real(real64), intent(in)   :: x ! In [0, 1]
+    character(len=8)           :: ogrid
+    integer(int32), intent(in) :: nlev
+    real(real64)               :: y ! Should be in [0, 1]
+    real(real64)               :: pi_dp
+    real(real64)               :: uni_spc
+    real(real64)               :: rand_dp
 
     select case(trim(adjustl(ogrid)))
     case('sqr')
@@ -181,6 +211,15 @@ contains
     case('sin')
        pi_dp = 4.0_real64*atan(1.0_real64)
        y = 0.5_real64 * (1 - cos(pi_dp * x))
+    case('rng')
+       if ((x .eq. 0.0_real64) .or. (x .eq. 1.0_real64)) then
+          y = x
+       else
+          uni_spc = 1.0_real64 / (nlev - 1.0_real64)
+          call random_number(rand_dp)
+          y = x + 0.25_real64 * uni_spc * rand_dp
+       end if
+
     end select
 
 
@@ -206,8 +245,37 @@ contains
        end if
     case('sig')
        y = 1.0_real64/(1.0_real64 + exp(-30.0_real64*(x-0.5_real64)))
+    case('wdg')
+       if (x .le. 0.5) then
+          y = 0.5_real64*x
+       else if (x .gt. 0.5) then
+          y = 1.5_real64*x - 0.5_real64
+       end if
     end select
 
   end function Q_func
+
+  subroutine rand_init(seed)
+
+    use iso_fortran_env, only: int32
+
+    implicit none
+
+    integer(int32), intent(in) :: seed !< the seed to use with the rng
+    integer(int32) :: i !< counter for do loops
+    integer(int32), dimension(33) :: seedarr !< the array generated for putting
+    !! into random_seed
+
+    seedarr = 0_int32
+    seedarr(1) = 104729_int32 + 5_int32 * seed ! this is pretty aribtrary
+
+    do i = 2, 33
+       seedarr(i) = mod(420_int32 * seedarr(i-1) + 69_int32, 4294967_int32)
+       ! this is also pretty arbitrary
+    end do
+
+    call random_seed(put = seedarr)
+
+  end subroutine rand_init
 
 end program vert_remap

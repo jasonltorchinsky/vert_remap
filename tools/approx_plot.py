@@ -9,20 +9,22 @@ from os import mkdir, path
 ###############################################################################
 # Plotting function
 
-def gen_pw_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
-                      lim):
+def gen_approx_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
+                    lim):
     
     ###########################################################################
     # Experiment paramters
     nruns = np.size(ncellList)
     
     ###########################################################################
-    # Calculate difference between each approximation and each truth.
+    # Get each approximation and each truth, although we will only use the
+    # highest-resolution truth.
 
     gridDict = dict()
-    diffDict = dict()
+    trueDict = dict()
+    approxDict = dict()
 
-    print(" ~~ Reading output from each run and calculating pointwise error...")
+    print(" ~~ Reading output from each run and getting approximation...")
     for runIdx in range(nruns):
         ncell = ncellList[runIdx]
         QNew = np.zeros(shape=(ncell))
@@ -38,12 +40,13 @@ def gen_pw_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
 
         # Calculate pointwise error
         gridDict[ncell] = grid2
-        diffDict[ncell] = np.abs(QTrue - QNew)
+        trueDict[ncell] = QTrue
+        approxDict[ncell] = QNew
     
     ###########################################################################
-    # Plot the pointwise errors
+    # Plot the approximations
 
-    print(" ~~ Plotting the pointwise errors...")
+    print(" ~~ Plotting the approximations...")
     
     # Make sure the output directory for plots has been created.
     plotsPath = path.join('..', 'plots')
@@ -56,21 +59,23 @@ def gen_pw_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     ## Axes.
     ax = plt.axes()
     
-    ## Plot the errors
+    ## Plot the truth, approximations
+    lineLabel = 'Exact'
+    plt.plot(gridDict[ncellList[nruns-1]], trueDict[ncellList[nruns-1]], 'k--', label = lineLabel)
     for runIdx in range(nruns):
         ncell = ncellList[runIdx]
         lineLabel = 'Cell Count: ' + '{}'.format(ncell)
-        plt.plot(gridDict[ncell], diffDict[ncell], label = lineLabel)
+        plt.plot(gridDict[ncell], approxDict[ncell], label = lineLabel)
     
     # Add plot titles and labels
     plt.title('Original Grid: ' + ogridFunc + '\nTest Function: ' + tfuncFunc + 
               '\nLimiter: ' + lim.title())
     plt.xlabel('$x$')
-    plt.ylabel('Pointwise Error')
+    plt.ylabel('$Q$')
 
     # Add legend
     plt.legend()
     
     # Save the plot to file
-    fileName = 'pw_err_' + ogrid + '_' + tfunc + '_' + lim + '.png'
+    fileName = 'approx_' + ogrid + '_' + tfunc + '_' + lim + '.png'
     plt.savefig(path.join(plotsPath, fileName), dpi = 300)

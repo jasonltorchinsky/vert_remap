@@ -3,11 +3,28 @@
 
 echo '-- Generating plots...'
 
-for ogrid in sqr cub sig sin
+# Which plots to generate
+plterr=yes
+pltpwerr=yes
+pltapprox=yes
+pltmassdiff=yes
+pltmasserr=yes
+
+# Set run variables
+ogrid_opts=(cub sig sin sqr rng)
+tfunc_opts=(exp sig stp wdg)
+
+for ogrid in ${ogrid_opts[@]}
 do
-    for tfunc in sig exp stp
-    do	
-	python main.py --ogrid=$ogrid --tfunc=$tfunc
+    for tfunc in ${tfunc_opts[@]}
+    do
+	for lim in on off
+	do
+	    python main.py --ogrid=$ogrid --tfunc=$tfunc \
+		   --plterr=$plterr --pltpwerr=$pltpwerr \
+		   --pltapprox=$pltapprox --pltmassdiff=$pltmassdiff \
+		   --pltmasserr=$pltmasserr --lim=$lim
+	done
     done
 done
 

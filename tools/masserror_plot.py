@@ -9,8 +9,8 @@ from os import mkdir, path
 ###############################################################################
 # Plotting function
 
-def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
-                   lim):
+def gen_masserror_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
+                       lim):
     
     ###########################################################################
     # Experiment paramters
@@ -25,7 +25,8 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     error2List = np.zeros_like(error1List)
     errorMaxList = np.zeros_like(error1List)
 
-    print(" ~~ Reading output from each run and calculating global error...")
+    print(" ~~ Reading output from each run and calculating global " +
+          "mass error...")
     for runIdx in range(nruns):
         ncell = ncellList[runIdx]
         QNew = np.zeros(shape=(ncell))
@@ -40,11 +41,12 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
             dp2[:] = np.asarray(ds.dp2)[:]
 
         # Calculate error in the three norms
-        error1List[runIdx] = np.sum(np.multiply(dp2, np.abs(QNew - QTrue)))
+        error1List[runIdx] = np.sum(np.multiply(dp2**2, np.abs(QNew - QTrue)))
     
-        error2List[runIdx] = np.sqrt(np.sum(np.multiply(dp2, np.abs(QNew - QTrue)**2)))
+        error2List[runIdx] = np.sqrt(np.sum(
+            np.multiply(dp2**3, np.abs(QNew - QTrue)**2)))
 
-        errorMaxList[runIdx] = np.max(np.abs(QNew - QTrue))
+        errorMaxList[runIdx] = np.max(np.multiply(dp2, np.abs(QNew - QTrue)))
 
     ############################################################################
     # Calculate best-fit line for the errors
@@ -92,7 +94,7 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     plt.title('Original Grid: ' + ogridFunc + '\nTest Function: ' + tfuncFunc + 
               '\nLimiter: ' + lim.title())
     plt.xlabel('Number of Cells')
-    plt.ylabel('Error')
+    plt.ylabel('Mass Error')
     
     # Add legend
     plt.legend()
@@ -108,5 +110,5 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     ax.text(0.5, 0.05, bfLineMaxOrd, transform = ax.transAxes, color = 'k')
     
     # Save the plot to file
-    fileName = 'err_' + ogrid + '_' + tfunc + '_' + lim + '.png'
+    fileName = 'masserr_' + ogrid + '_' + tfunc + '_' + lim + '.png'
     plt.savefig(path.join(plotsPath, fileName), dpi = 300)
