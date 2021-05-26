@@ -152,6 +152,33 @@ vertremap_base.F90.s:
 	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_base.F90.s
 .PHONY : vertremap_base.F90.s
 
+vertremap_redux.o: vertremap_redux.F90.o
+
+.PHONY : vertremap_redux.o
+
+# target to build an object file
+vertremap_redux.F90.o:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o
+.PHONY : vertremap_redux.F90.o
+
+vertremap_redux.i: vertremap_redux.F90.i
+
+.PHONY : vertremap_redux.i
+
+# target to preprocess a source file
+vertremap_redux.F90.i:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.i
+.PHONY : vertremap_redux.F90.i
+
+vertremap_redux.s: vertremap_redux.F90.s
+
+.PHONY : vertremap_redux.s
+
+# target to generate assembly for a file
+vertremap_redux.F90.s:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.s
+.PHONY : vertremap_redux.F90.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -164,6 +191,9 @@ help:
 	@echo "... vertremap_base.o"
 	@echo "... vertremap_base.i"
 	@echo "... vertremap_base.s"
+	@echo "... vertremap_redux.o"
+	@echo "... vertremap_redux.i"
+	@echo "... vertremap_redux.s"
 .PHONY : help
 
 

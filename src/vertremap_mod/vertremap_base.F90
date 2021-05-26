@@ -41,6 +41,20 @@ module vertremap_mod
   integer(int32) , parameter :: int_kind = int32
   integer(int32) , parameter :: real_kind = real64
 
+  public :: new_remap
+  interface new_remap
+     module subroutine new_remap_sbr(qdp, ncell, dp1, dp2, remap_alg)
+       use iso_fortran_env, only: int32, real64
+       implicit none
+       integer(int32), intent(in)  :: ncell ! Number of cells in the grid
+       real(real64), intent(inout) :: qdp(ncell) ! Mass of each cell
+       real(real64), intent(in)    :: dp1(ncell), dp2(ncell) ! Width of cells for
+       ! original, new grids
+       integer(int32), intent(in)  :: remap_alg ! Algorithm flag to use for
+       ! remapping
+     end subroutine new_remap_sbr
+  end interface new_remap
+
 contains
 
 
@@ -72,13 +86,17 @@ contains
     logical :: abrtf=.false.
 
     q = remap_alg
-    if ( (q.ne.-1) .and. (q.ne.0) .and. (q.ne.1) .and. (q.ne.10) .and. (q.ne.11) )&
-         error stop 'Bad remap alg value. Use -1, 0, 1, 10 or 11.'
+    if ( (q.ne.-1) .and. (q.ne.0) .and. (q.ne.1) .and. (q.ne.10) .and. (q.ne.11) .and. (q .ne. 20))&
+         error stop 'Bad remap alg value. Use -1, 0, 1, 10, 11, or 20.'
 
     if (remap_alg == -1) then
        call remap1_nofilter(qdp, nx, nlev, qsize, dp1, dp2)
        return
     endif
+    if (remap_alg >= 20) then ! New remapping algorithm - Jason Torchinsky Summer 2021
+       call new_remap(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg)
+       return
+    end if
     if (remap_alg >= 1) then
        call remap_Q_ppm(qdp, nx, nlev, qsize, dp1, dp2, remap_alg)
        return
@@ -562,6 +580,9 @@ contains
 
           !This turned out a big optimization, remembering that only parts of the PPM algorithm depends on the data, namely the
           !limiting. So anything that depends only on the grid is pre-computed outside the tracer loop.
+          !! TO-DO: Have this compute the grid-based coefficients for Eq. 2.2.6 of the project notes. - Jason Torchinsky, 2021/05/25
+          !! Maybe just make a flag for how to compute the coefficients.
+          !! Or maybe just re-work a large part of this code with a new option, although that would be pretty messy.
           ppmdx(:,:) = compute_ppm_grids( dpo, nlev )
 
           !From here, we loop over tracers for only those portions which depend on tracer data, which includes PPM limiting and
@@ -582,11 +603,11 @@ contains
              if (remap_alg==10) then
                 ext(1) = minval(ao(1:nlev))
                 ext(2) = maxval(ao(1:nlev))
-                call linextrap(dpo(2), dpo(1), dpo(0), dpo(-1), ao(2), ao(1), ao(0), ao(-1), 1,ext(1), ext(2))
+                call linextrap(dpo(2), dpo(1), dpo(0), dpo(-1), ao(2), ao(1), ao(0), ao(-1), 1, ext(1), ext(2))
                 call linextrap(dpo(nlev-1), dpo(nlev), dpo(nlev+1), dpo(nlev+2),&
                      ao(nlev-1), ao(nlev), ao(nlev+1), ao(nlev+2), 1, ext(1), ext(2))
              else if (remap_alg==11) then
-                call linextrap(dpo(2), dpo(1), dpo(0), dpo(-1), ao(2), ao(1), ao(0), ao(-1), 0,ext(1), ext(2))
+                call linextrap(dpo(2), dpo(1), dpo(0), dpo(-1), ao(2), ao(1), ao(0), ao(-1), 0, ext(1), ext(2))
                 call linextrap(dpo(nlev-1), dpo(nlev), dpo(nlev+1), dpo(nlev+2),&
                      ao(nlev-1), ao(nlev), ao(nlev+1), ao(nlev+2), 0, ext(1), ext(2))
              else
@@ -617,7 +638,7 @@ contains
   end subroutine remap_Q_ppm
 
 
-  !THis compute grid-based coefficients from Collela & Woodward 1984.
+  ! This computes grid-based coefficients from Collela & Woodward 1984.
   function compute_ppm_grids( dx, nlev )   result(rslt)
     implicit none
     integer(kind=int_kind), intent(in) :: nlev
@@ -655,8 +676,8 @@ contains
     integer(kind=int_kind), intent(in) :: nlev
     real(kind=real_kind), intent(in) :: a    (    -1:nlev+2)  !Cell-mean values
     real(kind=real_kind), intent(in) :: dx   (10,  0:nlev+1)  !grid spacings
-    integer :: remap_alg
-    real(kind=real_kind) ::             coefs(0:2,   nlev  )  !PPM coefficients (for parabola)
+    integer, intent(in)  :: remap_alg
+    real(kind=real_kind) :: coefs(0:2,   nlev  )  !PPM coefficients (for parabola)
     real(kind=real_kind) :: ai (0:nlev  )                     !fourth-order accurate, then limited interface values
     real(kind=real_kind) :: dma(0:nlev+1)                     !An expression from Collela's '84 publication
     real(kind=real_kind) :: da                                !Ditto
@@ -671,49 +692,57 @@ contains
     integer :: vert_remap_tom = 1   
     integer :: vert_remap_bl = 1
 
+    ! For the Collela08, White08 PPM, we have to account for non-uniform grids and the boundaries.
+    ! To do this, 
 
-    ! Stage 1: Compute dma for each cell, allowing a 1-cell ghost stencil below and above the domain
-    do j = 0 , nlev+1
-       da = dx(1,j) * ( dx(2,j) * ( a(j+1) - a(j) ) + dx(3,j) * ( a(j) - a(j-1) ) )
-       dma(j) = minval( (/ abs(da) , 2. * abs( a(j) - a(j-1) ) , 2. * abs( a(j+1) - a(j) ) /) ) * sign(1.D0,da)
-       if ( ( a(j+1) - a(j) ) * ( a(j) - a(j-1) ) <= 0. ) dma(j) = 0.
-    enddo
+    if (remap_alg == 20) then ! Use the updated PPM from Colella08, White08, ignoring ghost cells.
 
-    ! Stage 2: Compute ai for each cell interface in the physical domain (dimension nlev+1)
-    do j = 0 , nlev
-       ai(j) = a(j) + dx(4,j) * ( a(j+1) - a(j) ) + dx(5,j) * ( dx(6,j) * ( dx(7,j) - dx(8,j) ) &
-            * ( a(j+1) - a(j) ) - dx(9,j) * dma(j+1) + dx(10,j) * dma(j) )
-    enddo
+    else ! Use the PPM from Collela84, with ghost cells.
 
-    ! Stage 3: Compute limited PPM interpolant over each cell in the physical domain
-    ! (dimension nlev) using ai on either side and ao within the cell.
-    do j = 1 , nlev
-       al = ai(j-1)
-       ar = ai(j  )
-       if ( (ar - a(j)) * (a(j) - al) <= 0. ) then
-          al = a(j)
-          ar = a(j)
+
+       ! Stage 1: Compute dma for each cell, allowing a 1-cell ghost stencil below and above the domain
+       do j = 0 , nlev+1
+          da = dx(1,j) * ( dx(2,j) * ( a(j+1) - a(j) ) + dx(3,j) * ( a(j) - a(j-1) ) )
+          dma(j) = minval( (/ abs(da) , 2. * abs( a(j) - a(j-1) ) , 2. * abs( a(j+1) - a(j) ) /) ) * sign(1.D0,da)
+          if ( ( a(j+1) - a(j) ) * ( a(j) - a(j-1) ) <= 0. ) dma(j) = 0.
+       enddo
+
+       ! Stage 2: Compute ai for each cell interface in the physical domain (dimension nlev+1)
+       do j = 0 , nlev
+          ai(j) = a(j) + dx(4,j) * ( a(j+1) - a(j) ) + dx(5,j) * ( dx(6,j) * ( dx(7,j) - dx(8,j) ) &
+               * ( a(j+1) - a(j) ) - dx(9,j) * dma(j+1) + dx(10,j) * dma(j) )
+       enddo
+
+       ! Stage 3: Compute limited PPM interpolant over each cell in the physical domain
+       ! (dimension nlev) using ai on either side and ao within the cell.
+       do j = 1 , nlev
+          al = ai(j-1)
+          ar = ai(j  )
+          if ( (ar - a(j)) * (a(j) - al) <= 0. ) then
+             al = a(j)
+             ar = a(j)
+          endif
+          if ( (ar - al) * (a(j) - (al + ar)/2.) >  (ar - al)**2/6. ) al = 3.*a(j) - 2. * ar
+          if ( (ar - al) * (a(j) - (al + ar)/2.) < -(ar - al)**2/6. ) ar = 3.*a(j) - 2. * al
+          !Computed these coefficients from the edge values and cell mean in Maple. Assumes normalized coordinates: xi=(x-x0)/dx
+          coefs(0,j) = 1.5 * a(j) - ( al + ar ) / 4.
+          coefs(1,j) = ar - al
+          ! coefs(2,j) = -6. * a(j) + 3. * ( al + ar )
+          coefs(2,j) = 3. * (-2. * a(j) + ( al + ar ))
+       enddo
+
+       ! switch to piecewise constant near the boundaries
+       if (remap_alg==2) then
+          do j=1,vert_remap_tom
+             coefs(0,j) = a(j)
+             coefs(1:2,j) = 0.D0
+          enddo
+          do j=nlev+1-vert_remap_bl,nlev
+             coefs(0,j) = a(j)
+             coefs(1:2,j) = 0.D0
+          enddo
        endif
-       if ( (ar - al) * (a(j) - (al + ar)/2.) >  (ar - al)**2/6. ) al = 3.*a(j) - 2. * ar
-       if ( (ar - al) * (a(j) - (al + ar)/2.) < -(ar - al)**2/6. ) ar = 3.*a(j) - 2. * al
-       !Computed these coefficients from the edge values and cell mean in Maple. Assumes normalized coordinates: xi=(x-x0)/dx
-       coefs(0,j) = 1.5 * a(j) - ( al + ar ) / 4.
-       coefs(1,j) = ar - al
-       ! coefs(2,j) = -6. * a(j) + 3. * ( al + ar )
-       coefs(2,j) = 3. * (-2. * a(j) + ( al + ar ))
-    enddo
-
-    ! switcht to piecewise constant near the boundaries
-    if (remap_alg==2) then
-       do j=1,vert_remap_tom
-          coefs(0,j) = a(j)
-          coefs(1:2,j) = 0.D0
-       enddo
-       do j=nlev+1-vert_remap_bl,nlev
-          coefs(0,j) = a(j)
-          coefs(1:2,j) = 0.D0
-       enddo
-    endif
+    end if
 
   end function compute_ppm
 

@@ -70,17 +70,32 @@ src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_base.F90.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/vertremap_mod.dir/vertremap_base.F90.s"
 	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/src/vertremap_mod" && /usr/bin/f95 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/src/vertremap_mod/vertremap_base.F90" -o CMakeFiles/vertremap_mod.dir/vertremap_base.F90.s
 
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/flags.make
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o: ../src/vertremap_mod/vertremap_redux.F90
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir="/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_2) "Building Fortran object src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o"
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/src/vertremap_mod" && /usr/bin/f95 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -c "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/src/vertremap_mod/vertremap_redux.F90" -o CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o
+
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing Fortran source to CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.i"
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/src/vertremap_mod" && /usr/bin/f95 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -E "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/src/vertremap_mod/vertremap_redux.F90" > CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.i
+
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling Fortran source to assembly CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.s"
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/src/vertremap_mod" && /usr/bin/f95 $(Fortran_DEFINES) $(Fortran_INCLUDES) $(Fortran_FLAGS) -S "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/src/vertremap_mod/vertremap_redux.F90" -o CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.s
+
 # Object files for target vertremap_mod
 vertremap_mod_OBJECTS = \
-"CMakeFiles/vertremap_mod.dir/vertremap_base.F90.o"
+"CMakeFiles/vertremap_mod.dir/vertremap_base.F90.o" \
+"CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o"
 
 # External object files for target vertremap_mod
 vertremap_mod_EXTERNAL_OBJECTS =
 
 src/vertremap_mod/libvertremap_mod.a: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_base.F90.o
+src/vertremap_mod/libvertremap_mod.a: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o
 src/vertremap_mod/libvertremap_mod.a: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make
 src/vertremap_mod/libvertremap_mod.a: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir="/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_2) "Linking Fortran static library libvertremap_mod.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir="/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/CMakeFiles" --progress-num=$(CMAKE_PROGRESS_3) "Linking Fortran static library libvertremap_mod.a"
 	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/src/vertremap_mod" && $(CMAKE_COMMAND) -P CMakeFiles/vertremap_mod.dir/cmake_clean_target.cmake
 	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build/src/vertremap_mod" && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/vertremap_mod.dir/link.txt --verbose=$(VERBOSE)
 

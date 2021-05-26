@@ -84,8 +84,10 @@ program vert_remap
         call get_command_argument(ii + 1, lim_str)
         if (lim_str .eq. 'on') then
            lim = 10
-        else
+        else if (lim_str .eq. 'off') then
            lim = 11
+        else if (lim_str .eq. 'new') then
+           lim = 20
         end if
      case('seed')
         call get_command_argument(ii + 1, arg)
@@ -147,7 +149,7 @@ program vert_remap
   ! Remap Qdp to grid 1
   allocate(QdpNew(ncell)) ! Remap is in-place, so we make a new array.
   QdpNew = QdpOrig
-  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, 11)
+  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, lim)
 
   ! Get density from mass
   allocate(QNew(ncell))
@@ -207,7 +209,11 @@ contains
     case('cub')
        y = x**3
     case('sig')
-       y = 1.0_real64/(1.0_real64 + exp(-30.0_real64*(x-0.5_real64)))
+       if ((x .ne. 0.0_real64) .or. (x .ne. 1.0_real64)) then
+          y = 1.0_real64/(1.0_real64 + exp(-30.0_real64*(x-0.5_real64)))
+       else
+          y = x
+       end if
     case('sin')
        pi_dp = 4.0_real64*atan(1.0_real64)
        y = 0.5_real64 * (1 - cos(pi_dp * x))

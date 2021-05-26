@@ -1,3 +1,4 @@
 # The fortran modules provided by this target.
 provides
  vertremap_mod.mod
+ vertremap_mod@vertremap_redux.smod
