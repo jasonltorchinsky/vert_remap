@@ -9,6 +9,7 @@ build_dir=../build
 
 # Re-build the application
 cd "$build_dir"
+rm -rf *
 cmake ..
 cmake --build .
 cd "$run_dir"
