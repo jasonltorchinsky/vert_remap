@@ -11,19 +11,19 @@ pltmassdiff=yes
 pltmasserr=yes
 
 # Set run variables
-ogrid_opts=(cub sig sin sqr rng)
-tfunc_opts=(exp sig stp wdg)
+ogrid_opts=(sqr)
+tfunc_opts=(exp)
 
 for ogrid in ${ogrid_opts[@]}
 do
     for tfunc in ${tfunc_opts[@]}
     do
-	for lim in on off
+	for alg in on off new
 	do
 	    python main.py --ogrid=$ogrid --tfunc=$tfunc \
 		   --plterr=$plterr --pltpwerr=$pltpwerr \
 		   --pltapprox=$pltapprox --pltmassdiff=$pltmassdiff \
-		   --pltmasserr=$pltmasserr --lim=$lim
+		   --pltmasserr=$pltmasserr --alg=$alg
 	done
     done
 done

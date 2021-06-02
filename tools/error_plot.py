@@ -10,7 +10,7 @@ from os import mkdir, path
 # Plotting function
 
 def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
-                   lim):
+                   alg):
     
     ###########################################################################
     # Experiment paramters
@@ -32,7 +32,7 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
         QTrue = np.zeros_like(QNew)
         dp2 = np.zeros_like(QNew)
         runStr = '{0:08d}'.format(ncell)
-        fileName = ogrid + '_' + tfunc + '_' + runStr + '_' + lim + '.nc'
+        fileName = ogrid + '_' + tfunc + '_' + runStr + '_' + alg + '.nc'
         filePath = path.join(outputDir, fileName)
         with xr.open_dataset(filePath) as ds:
             QNew[:] = np.asarray(ds.QNew)[:]
@@ -90,7 +90,7 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     
     # Add plot titles and labels
     plt.title('Original Grid: ' + ogridFunc + '\nTest Function: ' + tfuncFunc + 
-              '\nLimiter: ' + lim.title())
+              '\nAlgorithm: ' + alg.title())
     plt.xlabel('Number of Cells')
     plt.ylabel('Error')
     
@@ -108,5 +108,5 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     ax.text(0.5, 0.05, bfLineMaxOrd, transform = ax.transAxes, color = 'k')
     
     # Save the plot to file
-    fileName = 'err_' + ogrid + '_' + tfunc + '_' + lim + '.png'
+    fileName = 'err_' + ogrid + '_' + tfunc + '_' + alg + '.png'
     plt.savefig(path.join(plotsPath, fileName), dpi = 300)

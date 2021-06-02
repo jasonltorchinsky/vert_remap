@@ -18,8 +18,8 @@ program vert_remap
   ! each grid
   character(len=8)          :: ogrid, tfunc ! Form of original grid and test
   ! function
-  integer(int32)            :: lim ! Turn limiter on (10) or off (11)
-  character(len=3)          :: lim_str ! String corresponding to limiter on
+  integer(int32)            :: alg ! Turn limiter on (10) or off (11)
+  character(len=3)          :: alg_str ! String corresponding to limiter on
   ! or off
   integer(int32)            :: curr_time(8) ! Current time
   integer(int32)            :: seed ! Seed for RNG
@@ -43,8 +43,8 @@ program vert_remap
   nlev = 0
   ogrid = 'sqr'
   tfunc = 'exp'
-  lim = 10
-  lim_str = 'on'
+  alg = 10
+  alg_str = 'on'
   call date_and_time(VALUES=curr_time)
   seed = 0_int32
   do ii = 4, 8
@@ -64,12 +64,18 @@ program vert_remap
         print *, '  nlev: Number of grid levels (cell boundaries).'
         print *, '  ncell: Number of cells (regions between levels).'
         print *, '  ogrid: Form of original grid. Options: sqr (x^2),'
-        print *, '         cub (x^3), sig (sigmoid-ish), sin (sine).'
+        print *, '         cub (x^3), sig (sigmoid-ish), sin (sine),'
+        print *, '         uni (uniform).'
         print *, '  tfunc: Test density function. Options: exp (e^x),'
         print *, '         stp (step function), sig (sigmoid-ish),'
         print *, '         wdg (wedge).'
-        print *, '  lim: Turn limiter on ("on") or off ("off").'
+        print *, '  alg: Which algorithm to use. Options: "on" for'
+        print *, '       original algorithm with limiter on on the'
+        print *, '       boundaries, "off" for original algorithm'
+        print *, '       with limit off on the boundaries, "new"'
+        print *, '       for new algorithm.'
         print *, '  seed: Seed for RNG.'
+        stop
      case('ncell')
         call get_command_argument(ii + 1, arg)
         read(arg, *) ncell
@@ -80,14 +86,14 @@ program vert_remap
         call get_command_argument(ii + 1, ogrid)
      case('tfunc')
         call get_command_argument(ii + 1, tfunc)
-     case('lim')
-        call get_command_argument(ii + 1, lim_str)
-        if (lim_str .eq. 'on') then
-           lim = 10
-        else if (lim_str .eq. 'off') then
-           lim = 11
-        else if (lim_str .eq. 'new') then
-           lim = 20
+     case('alg')
+        call get_command_argument(ii + 1, alg_str)
+        if (alg_str .eq. 'on') then
+           alg = 10
+        else if (alg_str .eq. 'off') then
+           alg = 11
+        else if (alg_str .eq. 'new') then
+           alg = 20
         end if
      case('seed')
         call get_command_argument(ii + 1, arg)
@@ -149,11 +155,11 @@ program vert_remap
   ! Remap Qdp to grid 1
   allocate(QdpNew(ncell)) ! Remap is in-place, so we make a new array.
   QdpNew = QdpOrig
-  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, lim)
+  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, alg)
 
   ! Get density from mass
   allocate(QNew(ncell))
-  do ii = 1, nlev
+  do ii = 1, ncell
      QNew(ii) = QdpNew(ii) / dp2(ii)
   end do
 
@@ -167,7 +173,7 @@ program vert_remap
   outdirName = '../output' // repeat(' ', 41)
 100 format (A, A, A, A, I0.8, A, A, A)
   write(outfileName, 100) trim(adjustl(ogrid)), '_', trim(adjustl(tfunc)), &
-       & '_', ncell, '_', trim(adjustl(lim_str)), '.nc'
+       & '_', ncell, '_', trim(adjustl(alg_str)), '.nc'
   call mkdir(outdirName)
   call netcdf_init_outfile(2, &
        & ['ncell' // repeat(' ', 10), 'nlev' // repeat(' ', 11)], &
@@ -209,7 +215,9 @@ contains
     case('cub')
        y = x**3
     case('sig')
-       if ((x .ne. 0.0_real64) .or. (x .ne. 1.0_real64)) then
+       if ((x .gt. 1.0_real64 / real(nlev - 1, real64)) &
+            & .or. (x .lt. 1.0_real64 - 1.0_real64 / real(nlev - 1, real64))) then
+          ! Odd looking condition which relaxes the real comparison
           y = 1.0_real64/(1.0_real64 + exp(-30.0_real64*(x-0.5_real64)))
        else
           y = x
@@ -218,14 +226,16 @@ contains
        pi_dp = 4.0_real64*atan(1.0_real64)
        y = 0.5_real64 * (1 - cos(pi_dp * x))
     case('rng')
-       if ((x .eq. 0.0_real64) .or. (x .eq. 1.0_real64)) then
+       if ((x .lt. 1.0_real64 / real(nlev - 1, real64)) &
+            & .or. (x .gt. 1.0_real64 - 1.0_real64 / real(nlev - 1, real64))) then
           y = x
        else
           uni_spc = 1.0_real64 / (nlev - 1.0_real64)
           call random_number(rand_dp)
           y = x + 0.25_real64 * uni_spc * rand_dp
        end if
-
+    case('uni')
+       y = x
     end select
 
 
