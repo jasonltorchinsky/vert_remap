@@ -32,7 +32,7 @@ outputDir = path.join("..", "output")
 opts, args = getopt.getopt(argv[1:], '', {'ogrid=', 'tfunc=', 'plterr=',
                                           'pltpwerr=', 'pltapprox=',
                                           'pltmassdiff=', 'pltmasserr=',
-                                          'lim='})
+                                          'alg='})
 
 ogrid = ''
 tfunc = ''
@@ -41,7 +41,7 @@ pltpwerr = ''
 pltapprox = ''
 pltmassdiff = ''
 pltmasserr = ''
-lim = ''
+alg = ''
 for opt, arg in opts:
     if opt == '--ogrid':
         ogrid = arg
@@ -57,8 +57,8 @@ for opt, arg in opts:
         pltmassdiff = arg
     elif opt == '--pltmasserr':
         pltmasserr = arg
-    elif opt == '--lim':
-        lim = arg
+    elif opt == '--alg':
+        alg = arg
 
 
 ################################################################################
@@ -77,6 +77,8 @@ elif ogrid == 'sin':
     ogridFunc = '$0.5\,(1 - cos(\pi x))$'
 elif ogrid == 'rng':
     ogridFunc = 'Random, $[-h/4, h/4]$'
+elif ogrid == 'uni':
+    ogridFunc = 'Uniform'
 else:
     ogridFunc = ''
 
@@ -93,12 +95,12 @@ else:
 
 # Generate plots.
 if (plterr == 'yes'):
-    gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, lim)
+    gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)
 if (pltpwerr == 'yes'):
-    gen_pw_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, lim)
+    gen_pw_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)
 if (pltapprox == 'yes'):
-    gen_approx_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, lim)
+    gen_approx_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)
 if (pltmassdiff == 'yes'):
-    gen_massdiff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, lim)
+    gen_massdiff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)
 if (pltmasserr == 'yes'):
-    gen_masserror_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, lim)
+    gen_masserror_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)

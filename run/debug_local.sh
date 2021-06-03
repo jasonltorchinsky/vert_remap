@@ -8,14 +8,18 @@ run_dir=`pwd`
 build_dir=../build
 
 # Re-build the application
+echo '-- Re-buidling executable...'
 cd "$build_dir"
 rm -rf *
 cmake ..
 cmake --build .
 cd "$run_dir"
 
+echo '-- Executable built. Starting execution...'
+sleep 2
+
 # Set run variables
-cell_counts=(8 9 10 11 12 13 14 15 16)
+cell_counts=(3)
 ogrid_opts=(sqr)
 tfunc_opts=(exp)
 rngseed=10
@@ -26,10 +30,9 @@ do
     do
 	for tfunc in ${tfunc_opts[@]}
 	do
-            for alg in on off new
+            for alg in new
             do
-		echo "-- Run: Grid - ${ogrid}, Test Function - ${tfunc}, Algorithm - ${alg}"
-		$build_dir/vert_remap ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg
+		gdb -tui --args $build_dir/vert_remap ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg
             done
 	done
     done
