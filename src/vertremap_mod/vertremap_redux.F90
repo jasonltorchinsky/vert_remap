@@ -110,8 +110,8 @@ contains
        end do
        call dsgesv(interpord, 1, A, interpord, ipiv, b, interpord, x, &
             & interpord, work, swork, temps_int(1), temps_int(2))
-       do kk = 2, interpord
-          edgevals(jj) = edgevals(jj) + (kk-1)*x(kk)*(grid1(jj)**(kk-2)) 
+       do kk = 1, interpord-1
+          edgevals(jj) = edgevals(jj) + (interpord-kk)*x(kk)*(grid1(jj)**(interpord-kk-1)) 
        end do 
     end do
 

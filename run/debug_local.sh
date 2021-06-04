@@ -8,7 +8,7 @@ run_dir=`pwd`
 build_dir=../build
 
 # Re-build the application
-echo '-- Re-buidling executable...'
+echo '-- Re-building executable...'
 cd "$build_dir"
 rm -rf *
 cmake ..
