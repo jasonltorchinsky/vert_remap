@@ -43,6 +43,7 @@ contains
     real(real64)                :: edgevals(0:ncell) ! Estimated edge values
     integer(int32)              :: limreq(0:ncell) ! Array for holding whether
     ! an edge estimate needs to be limited.
+    real(real64), parameter     :: C = 1.25 ! Multiple used in the limiter.
     real(real64)                :: parabvals(3, ncell) ! Holds aj,+, aj,-, and
     ! a6,j for the parabolic interpolant in each cell.
     integer(int32)              :: cellinsecs(2, ncell) ! Holds the cell number
@@ -110,6 +111,11 @@ contains
        end do
        call dsgesv(interpord, 1, A, interpord, ipiv, b, interpord, x, &
             & interpord, work, swork, temps_int(1), temps_int(2))
+       if (temps_int(2) .ne. 0_int32) then ! Matrix solve for polynomial interpolant failed.
+          print *, ' ~~ Matrix solve for polynomial interpoalnt for PPM failed.'
+          print *, ' ~~ dsgesv error flag:', temps_int(2)
+          print *, ' ~~ Continuing anyway...'
+       end if
        do kk = 1, interpord-1
           edgevals(jj) = edgevals(jj) + (interpord-kk)*x(kk)*(grid1(jj)**(interpord-kk-1)) 
        end do 
@@ -126,7 +132,7 @@ contains
        end if
     end do
     limreq(ncell) = 0 ! Don't limit at the boundaries
-    limreq = 0
+    !limreq = 0
 
     ! /Interpolating face values./
     ! Use a modified version of the limiter from Colella08.
@@ -137,23 +143,23 @@ contains
           temps_dp = 0.0_real64 ! Here we use this array for the estimates
           ! of the second derivative a-la Colella08 Eqn. 18
           ! Center approximation is good for all cases.
-          temps_dp(2) = &
-               & avgdens1(jj) / ((ccells1(jj) - grid1(jj))*(ccells1(jj) - ccells1(jj+1))) &
-               & + edgevals(jj) / ((ccells1(jj) - grid1(jj))*(ccells1(jj+1) - grid1(jj))) &
-               & + avgdens1(jj+1) / ((ccells1(jj+1) - grid1(jj))*(ccells1(jj+1) - ccells1(jj)))
+          temps_dp(2) = 8 * &
+               & ( avgdens1(jj) / (dp1(jj) * (dp1(jj+1) + dp1(jj))) &
+               &   - edgevals(jj) / (dp1(jj) * dp1(jj+1)) &
+               &   + avgdens1(jj+1) / (dp1(jj+1) * (dp1(jj+1) + dp1(jj))) )
           if (jj .ne. 1) then 
              ! Not on the left edge region, so left approximation is okay.
              temps_dp(1) = 2.0_real64 * &
-                  & (- avgdens1(jj-1) / ((ccells1(jj) - ccells1(jj-1))*(ccells1(jj-1) - ccells1(jj+1))) &
-                  &  + avgdens1(jj) / ((ccells1(jj) - ccells1(jj-1))*(ccells1(jj) - ccells1(jj+1))) &
-                  &  + avgdens1(jj+1) / ((ccells1(jj) - ccells1(jj+1))*(ccells1(jj-1) - ccells1(jj+1))))
+                  & ( avgdens1(jj-1) / (dp1(jj) * (dp1(jj+1) + dp1(jj))) &
+                  &   - avgdens1(jj) / (dp1(jj) * dp1(jj+1)) &
+                  &   + avgdens1(jj+1) / (dp1(jj+1) * (dp1(jj+1) + dp1(jj))) )
           end if
           if (jj .ne. ncell-1) then 
              ! Not on the right edge region, so right approximation is okay.
              temps_dp(3) = 2.0_real64 * &
-                  & (- avgdens1(jj) / ((ccells1(jj+1) - ccells1(jj))*(ccells1(jj) - ccells1(jj+2))) &
-                  &  + avgdens1(jj+1) / ((ccells1(jj+1) - ccells1(jj))*(ccells1(jj+1) - ccells1(jj+2))) &
-                  &  + avgdens1(jj+2) / ((ccells1(jj+1) - ccells1(jj+2))*(ccells1(jj) - ccells1(jj+2))))
+                  & ( avgdens1(jj) / (dp1(jj+1) * (dp1(jj+2) + dp1(jj+1))) &
+                  &   - avgdens1(jj+1) / (dp1(jj+1) * dp1(jj+2)) &
+                  &   + avgdens1(jj+2) / (dp1(jj+2) * (dp1(jj+2) + dp1(jj+1))) )
           end if
 
           ! Check if all of the approximations have the same sign or not
@@ -162,7 +168,7 @@ contains
              ! On left edge, only have two approximations, can multiply to see if signs agree.
              if (temps_dp(2) * temps_dp(3) .gt. 0.0_real64) then
                 ! We set C = 1.25 like Colella08
-                temps_dp(2) = sign(min(abs(temps_dp(2)), 1.25_real64 * abs(temps_dp(3))), temps_dp(2))
+                temps_dp(2) = sign(min(abs(temps_dp(2)), C * abs(temps_dp(3))), temps_dp(2))
              else
                 temps_dp(2) = 0.0_real64
              end if
@@ -170,7 +176,7 @@ contains
              ! On right edge, only have two approximations, can multiply to see if the signs agree.
              if (temps_dp(1) * temps_dp(2) .gt. 0.0_real64) then
                 !We set C = 1.25 like Colella08
-                temps_dp(2) = sign(min(1.25_real64 * abs(temps_dp(1)), abs(temps_dp(2))), temps_dp(2))
+                temps_dp(2) = sign(min(C * abs(temps_dp(1)), abs(temps_dp(2))), temps_dp(2))
              else
                 temps_dp(2) = 0.0_real64
              end if
@@ -179,8 +185,8 @@ contains
              if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
                   & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64)) then
                 !We set C = 1.25 like Colella08
-                temps_dp(2) = sign(min(1.25_real64 * abs(temps_dp(1)), &
-                     & abs(temps_dp(2)), 1.25_real64 * abs(temps_dp(3))), temps_dp(2))
+                temps_dp(2) = sign(min(C * abs(temps_dp(1)), &
+                     & abs(temps_dp(2)), C * abs(temps_dp(3))), temps_dp(2))
              else
                 temps_dp(2) = 0.0_real64
              end if
@@ -189,9 +195,7 @@ contains
           ! Adjust the edge value, use analogous formula to Colella08
           ! Use temps_dp(1) to hold the coefficient
           !! TO DO: Change this to reflect Eqn. 2.2.14 of the write-up.
-          temps_dp(1) = ((ccells1(jj) - grid1(jj))*(ccells1(jj) - ccells1(jj+1))) &
-               & + ((ccells1(jj) - grid1(jj))*(ccells1(jj+1) - grid1(jj))) &
-               & + ((ccells1(jj+1) - grid1(jj))*(ccells1(jj+1) - ccells1(jj)))
+          temps_dp(1) = sum(dp1(jj:jj+1))**2/6.0_real64
           edgevals(jj) = (avgdens1(jj) + avgdens1(jj+1))/2.0_real64 &
                & - temps_dp(1) * temps_dp(2)
        end if
@@ -209,25 +213,23 @@ contains
        parabvals(3, jj) = 6.0_real64 * avgdens1(jj) &
             & - 3.0_real64 * (parabvals(1, jj) + parabvals(2, jj)) ! a6,j
        ! The boundary cells must be handled differently than Colella08.
-       if (jj .eq. 1) then ! Leftmost cell
+       if (jj .le. 2) then ! Leftmost cells
           
           if ((parabvals(2, jj) - avgdens1(jj)) * (avgdens1(jj) - parabvals(1, jj)) &
                & .le. 0.0_real64) then ! We are at a local extremum
              ! Get second derivative estimates, can only do the centered
              ! and right-biased. Store in temps_dp(1), temps_dp(4).
-             temps_dp(1) = &
-                  & parabvals(1, jj) / ((grid1(jj-1) - grid1(jj))*(grid1(jj-1) - ccells1(jj))) &
-                  & + avgdens1(jj) / ((grid1(jj-1) - ccells1(jj))*(grid1(jj) - ccells1(jj))) &
-                  & + parabvals(2, jj) / ((grid1(jj-1) - grid1(jj))*(grid1(jj) - ccells1(jj)))
-             temps_dp(4) = &
-                  & avgdens1(jj) / ((ccells1(jj) - ccells1(jj+1))*(ccells1(jj) - ccells1(jj+2))) &
-                  & - avgdens1(jj+1) / ((ccells1(jj) - ccells1(jj+1))*(ccells1(jj+1) - ccells1(jj+2))) &
-                  & + avgdens1(jj+2) / ((ccells1(jj) - ccells1(jj+2))*(ccells1(jj+1) - ccells1(jj+2)))
+             temps_dp(1) = 4.0_real64 / dp1(jj) * &
+                  & (parabvals(1, jj) - 2.0_real64 * avgdens1(jj) + parabvals(2, jj))
+             temps_dp(4) = 8.0_real64 * &
+                  & ( avgdens1(jj) / ((dp1(jj+1) + dp1(jj))*(2.0_real64 * dp1(jj+2) + dp1(jj+1) + dp1(jj))) &
+                  &   - avgdens1(jj+1) / ((dp1(jj+1) + dp1(jj))*(dp1(jj+2) + dp1(jj+1))) &
+                  &   + avgdens1(jj+2) / ((dp1(jj+2) + dp1(jj+1))*(2.0_real64 * dp1(jj+2) + dp1(jj+1) + dp1(jj))) )
 
              if (temps_dp(1) * temps_dp(4) .gt. 0.0_real64) then
                 ! If they have the same sign, the limiting value is the smallest one. We again
                 ! use C = 1.25 and store the limiting value in temps_dp(2).
-                temps_dp(2) = sign(min(abs(temps_dp(1)), 1.25_real64 * abs(temps_dp(4))), &
+                temps_dp(2) = sign(min(abs(temps_dp(1)), C * abs(temps_dp(4))), &
                      & temps_dp(1))
              else
                 temps_dp(2) = 0.0_real64
@@ -277,25 +279,23 @@ contains
              
           end if
 
-       else if (jj .eq. ncell) then ! Rightmost cell
+       else if (jj .ge. ncell-1) then ! Rightmost cells
 
           if ((parabvals(2, jj) - avgdens1(jj)) * (avgdens1(jj) - parabvals(1, jj)) &
                & .le. 0.0_real64) then ! We are at a local extremum
              ! Get second derivative estimates, can only do the centered
              ! and left-biased. Store in temps_dp(1), temps_dp(2).
-             temps_dp(1) = &
-                  & parabvals(1, jj) / ((grid1(jj-1) - grid1(jj))*(grid1(jj-1) - ccells1(jj))) &
-                  & + avgdens1(jj) / ((grid1(jj-1) - ccells1(jj))*(grid1(jj) - ccells1(jj))) &
-                  & + parabvals(2, jj) / ((grid1(jj-1) - grid1(jj))*(grid1(jj) - ccells1(jj)))
-             temps_dp(2) = &
-                  & avgdens1(jj-2) / ((ccells1(jj-2) - ccells1(jj-1))*(ccells1(jj-2) - ccells1(jj))) &
-                  & - avgdens1(jj-1) / ((ccells1(jj-2) - ccells1(jj-1))*(ccells1(jj-1) - ccells1(jj))) &
-                  & + avgdens1(jj) / ((ccells1(jj-2) - ccells1(jj))*(ccells1(jj-1) - ccells1(jj)))
+             temps_dp(1) = 4.0_real64 / dp1(jj) * &
+                  & (parabvals(1, jj) - 2.0_real64 * avgdens1(jj) + parabvals(2, jj))
+             temps_dp(2) = 8.0_real64 * &
+                  & ( avgdens1(jj-2) / ((dp1(jj-1) + dp1(jj-2))*(2.0_real64 * dp1(jj) + dp1(jj-1) + dp1(jj-2))) &
+                  &   - avgdens1(jj-1) / ((dp1(jj-1) + dp1(jj-2))*(dp1(jj) + dp1(jj-1))) &
+                  &   + avgdens1(jj) / ((dp1(jj) + dp1(jj-1))*(2.0_real64 * dp1(jj) + dp1(jj-1) + dp1(jj-2))) )
 
              if (temps_dp(1) * temps_dp(2) .gt. 0.0_real64) then
                 ! If they have the same sign, the limiting value is the smallest one. We again
                 ! use C = 1.25 and store the limiting value in temps_dp(2).
-                temps_dp(2) = sign(min(abs(temps_dp(1)), 1.25_real64 * abs(temps_dp(2))), &
+                temps_dp(2) = sign(min(abs(temps_dp(1)), C * abs(temps_dp(2))), &
                      & temps_dp(1))
              else
                 temps_dp(2) = 0.0_real64
@@ -350,30 +350,28 @@ contains
           if (((parabvals(2, jj) - avgdens1(jj)) * (avgdens1(jj) - parabvals(1, jj)) .le. 0.0_real64) &
                & .or. (((avgdens1(jj-1) - avgdens1(jj)) * (avgdens1(jj) - avgdens1(jj+1)) .le. 0.0_real64))) then ! We are at a local extremum
              ! Get second derivative estimates, can get all four (j, j,L, j,C, j,R)
-             temps_dp(1) = &
-                  & parabvals(1, jj) / ((grid1(jj-1) - grid1(jj))*(grid1(jj-1) - ccells1(jj))) &
-                  & + avgdens1(jj) / ((grid1(jj-1) - ccells1(jj))*(grid1(jj) - ccells1(jj))) &
-                  & + parabvals(2, jj) / ((grid1(jj-1) - grid1(jj))*(grid1(jj) - ccells1(jj)))
-             temps_dp(2) = &
-                  & avgdens1(jj-2) / ((ccells1(jj-2) - ccells1(jj-1))*(ccells1(jj-2) - ccells1(jj))) &
-                  & - avgdens1(jj-1) / ((ccells1(jj-2) - ccells1(jj-1))*(ccells1(jj-1) - ccells1(jj))) &
-                  & + avgdens1(jj) / ((ccells1(jj-2) - ccells1(jj))*(ccells1(jj-1) - ccells1(jj)))
-             temps_dp(3) = &
-                  & avgdens1(jj-1) / ((ccells1(jj-1) - ccells1(jj))*(ccells1(jj-1) - ccells1(jj+1))) &
-                  & - avgdens1(jj) / ((ccells1(jj-1) - ccells1(jj))*(ccells1(jj) - ccells1(jj+1))) &
-                  & + avgdens1(jj+1) / ((ccells1(jj-1) - ccells1(jj+1))*(ccells1(jj) - ccells1(jj+1)))
-             temps_dp(4) = &
-                  & avgdens1(jj) / ((ccells1(jj) - ccells1(jj+1))*(ccells1(jj) - ccells1(jj+2))) &
-                  & - avgdens1(jj+1) / ((ccells1(jj) - ccells1(jj+1))*(ccells1(jj+1) - ccells1(jj+2))) &
-                  & + avgdens1(jj+2) / ((ccells1(jj) - ccells1(jj+2))*(ccells1(jj+1) - ccells1(jj+2)))
+             temps_dp(1) = 4.0_real64 / dp1(jj) * &
+                  & (parabvals(1, jj) - 2.0_real64 * avgdens1(jj) + parabvals(2, jj))
+             temps_dp(2) = 8.0_real64 * &
+                  & ( avgdens1(jj-2) / ((dp1(jj-1) + dp1(jj-2))*(2.0_real64 * dp1(jj) + dp1(jj-1) + dp1(jj-2))) &
+                  &   - avgdens1(jj-1) / ((dp1(jj-1) + dp1(jj-2))*(dp1(jj) + dp1(jj-1))) &
+                  &   + avgdens1(jj) / ((dp1(jj) + dp1(jj-1))*(2.0_real64 * dp1(jj) + dp1(jj-1) + dp1(jj-2))) )
+             temps_dp(3) = 8.0_real64 * &
+                  & ( avgdens1(jj-1) / ((dp1(jj) + dp1(jj-1))*(2.0_real64 * dp1(jj+1) + dp1(jj) + dp1(jj-1))) &
+                  &   - avgdens1(jj) / ((dp1(jj) + dp1(jj-1))*(dp1(jj+1) + dp1(jj))) &
+                  &   + avgdens1(jj+1) / ((dp1(jj+1) + dp1(jj))*(2.0_real64 * dp1(jj+1) + dp1(jj) + dp1(jj-1))) )
+             temps_dp(4) = 8.0_real64 * &
+                  & ( avgdens1(jj) / ((dp1(jj+1) + dp1(jj))*(2.0_real64 * dp1(jj+2) + dp1(jj+1) + dp1(jj))) &
+                  &   - avgdens1(jj+1) / ((dp1(jj+1) + dp1(jj))*(dp1(jj+2) + dp1(jj+1))) &
+                  &   + avgdens1(jj+2) / ((dp1(jj+2) + dp1(jj+1))*(2.0_real64 * dp1(jj+2) + dp1(jj+1) + dp1(jj))) )
 
              if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
                   & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64) &
                   & .and. (temps_dp(3) * temps_dp(4) .gt. 0.0_real64)) then
                 ! If each approximation has the same sign, the limiting value is the smallest one. We again
                 ! use C = 1.25 and store the limiting value in temps_dp(2).
-                temps_dp(2) = sign(min(abs(temps_dp(1)), 1.25_real64 * abs(temps_dp(2)), &
-                     & 1.25_real64 * abs(temps_dp(3)), 1.25_real64 * abs(temps_dp(4))), &
+                temps_dp(2) = sign(min(abs(temps_dp(1)), C * abs(temps_dp(2)), &
+                     & C * abs(temps_dp(3)), C * abs(temps_dp(4))), &
                      & temps_dp(1))
              else
                 temps_dp(2) = 0.0_real64

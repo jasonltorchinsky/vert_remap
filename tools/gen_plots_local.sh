@@ -12,7 +12,7 @@ pltmasserr=yes
 
 # Set run variables
 ogrid_opts=(sqr)
-tfunc_opts=(exp)
+tfunc_opts=(sig)
 
 for ogrid in ${ogrid_opts[@]}
 do

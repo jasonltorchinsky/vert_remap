@@ -19,7 +19,7 @@ echo '-- Executable built. Starting execution...'
 sleep 2
 
 # Set run variables
-cell_counts=(3)
+cell_counts=(13)
 ogrid_opts=(sqr)
 tfunc_opts=(exp)
 rngseed=10

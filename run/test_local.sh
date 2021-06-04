@@ -17,7 +17,7 @@ cd "$run_dir"
 # Set run variables
 cell_counts=(8 9 10 11 12 13 14 15 16)
 ogrid_opts=(sqr)
-tfunc_opts=(exp)
+tfunc_opts=(sig)
 rngseed=10
 
 for cells in ${cell_counts[@]}
