@@ -15,9 +15,9 @@ cmake --build .
 cd "$run_dir"
 
 # Set run variables
-cell_counts=(8 9 10 11 12 13 14 15 16)
-ogrid_opts=(sqr)
-tfunc_opts=(sig)
+cell_counts=(4 5 6 7 8)
+ogrid_opts=(cub rng sin sqr uni)
+tfunc_opts=(exp sig)
 rngseed=10
 
 for cells in ${cell_counts[@]}
