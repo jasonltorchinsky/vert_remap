@@ -7,7 +7,7 @@ submodule (vertremap_mod) vertremap_redux
 
 contains
 
-  module subroutine new_remap_sbr(qdp, ncell, dp1, dp2, remap_alg)
+  module subroutine new_remap_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
 
     use iso_fortran_env, only: int32, real32, real64
 
@@ -19,6 +19,7 @@ contains
     ! original, new grids
     integer(int32), intent(in)  :: remap_alg ! Algorithm flag to use for
     ! remapping
+    integer(int32), intent(in)  :: verbosity ! Print debug messages (1) or not (0)
     real(real64)                :: grid1(0:ncell) ! Reconstruction of the
     ! original grid.
     real(real64)                :: ccells1(ncell) ! Reconstruction of the
@@ -631,6 +632,22 @@ contains
        end if
 
     end do
+
+    ! Check that each parabolic piece is monotone
+    if (verbosity .eq. 1_int32) then
+       do jj = 1, ncell
+          temps_dp(1) = 6.0_real64 * dp1(jj) * avgdens1(jj) - 3.0_real64 * (parabvals(1, jj) + parabvals(2, jj))
+          temps_dp(2) = 3.0_real64 * dp1(jj) * avgdens1(jj) - (2.0_real64 * parabvals(1, jj) + parabvals(2, jj))
+          if (abs(temps_dp(1)) .le. 1.0e-10_real64) then
+             ! Is monotone.
+             continue
+          else if ((temps_dp(2) / temps_dp(1) .ge. 0.0_real64) &
+               & .and. (temps_dp(2) / temps_dp(1) .le. 1.0_real64)) then
+             ! Is not monotone
+             print *, '~~ !WARNING! The following piece is not monotone: ', jj
+          end if
+       end do
+    end if
 
     ! Now I have the piecewise parabolic reconstruction, now I have to get the mass in each of the new cells.
     ! I want a neat formula for integrating the piecewise parabolic reeconstruction.

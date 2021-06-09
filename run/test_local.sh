@@ -15,10 +15,10 @@ cmake --build .
 cd "$run_dir"
 
 # Set run variables
-cell_counts=(4 5 6 7 8 9 10 11 12 13 14 15 16)
-ogrid_opts=(rng)
-tfunc_opts=(exp sig stp wdg)
-alg_opts=(on off new)
+cell_counts=(3 4 5)
+ogrid_opts=(sqr)
+tfunc_opts=(exp)
+alg_opts=(new)
 rngseed=10
 
 for cells in ${cell_counts[@]}
@@ -30,7 +30,7 @@ do
             for alg in ${alg_opts[@]}
             do
 		echo "-- Run: Grid - ${ogrid}, Test Function - ${tfunc}, Algorithm - ${alg}"
-		$build_dir/vert_remap ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg seed $rngseed
+		$build_dir/vert_remap --verbose ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg seed $rngseed
             done
 	done
     done

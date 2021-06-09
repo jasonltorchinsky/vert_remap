@@ -43,7 +43,7 @@ module vertremap_mod
 
   public :: new_remap
   interface new_remap
-     module subroutine new_remap_sbr(qdp, ncell, dp1, dp2, remap_alg)
+     module subroutine new_remap_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
        use iso_fortran_env, only: int32, real64
        implicit none
        integer(int32), intent(in)  :: ncell ! Number of cells in the grid
@@ -52,6 +52,7 @@ module vertremap_mod
        ! original, new grids
        integer(int32), intent(in)  :: remap_alg ! Algorithm flag to use for
        ! remapping
+       integer(int32), intent(in)  :: verbosity ! Print debug messages (1) or not (0)
      end subroutine new_remap_sbr
   end interface new_remap
 
@@ -60,7 +61,7 @@ contains
 
   !=======================================================================================================!
 
-  subroutine remap1(Qdp, nx, nlev, qsize, dp1, dp2, remap_alg)
+  subroutine remap1(Qdp, nx, nlev, qsize, dp1, dp2, remap_alg, verbosity)
     ! remap 1 field
     ! input:  Qdp   field to be remapped (NOTE: MASS, not MIXING RATIO)
     !         dp1   layer thickness (source)
@@ -72,6 +73,7 @@ contains
     integer (kind=int_kind) , intent(in)    :: nx, nlev, qsize, remap_alg
     real (kind=real_kind)   , intent(inout) :: Qdp(nx, nx, nlev, qsize)
     real (kind=real_kind)   , intent(in)    :: dp1(nx, nx, nlev), dp2(nx, nx, nlev)
+    integer (kind=int_kind) , intent(in)    :: verbosity ! Print debug message (1) or not (0)
     ! ========================
     ! Local Variables
     ! ========================
@@ -94,7 +96,7 @@ contains
        return
     endif
     if (remap_alg >= 20) then ! New remapping algorithm - Jason Torchinsky Summer 2021
-       call new_remap(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg)
+       call new_remap(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg, verbosity)
        return
     end if
     if (remap_alg >= 1) then

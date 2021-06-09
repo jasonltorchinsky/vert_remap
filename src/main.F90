@@ -18,9 +18,11 @@ program vert_remap
   ! each grid
   character(len=8)          :: ogrid, tfunc ! Form of original grid and test
   ! function
-  integer(int32)            :: alg ! Turn limiter on (10) or off (11)
+  integer(int32)            :: alg ! Set algorithm. 10 - limiter on. 11 - limiter off.
+  ! 20 - new algorithm.
   character(len=3)          :: alg_str ! String corresponding to limiter on
   ! or off
+  integer(int32)            :: verbose ! Flag top print debugging messages.
   integer(int32)            :: curr_time(8) ! Current time
   integer(int32)            :: seed ! Seed for RNG
   real(real64), allocatable :: dp1(:), dp2(:) ! Grid spacings for each grid
@@ -50,6 +52,7 @@ program vert_remap
   do ii = 4, 8
      seed = seed + curr_time(ii)
   end do
+  verbose = 0_int32
   
   ! Read command line arguments
   do ii = 0, command_argument_count()
@@ -60,6 +63,7 @@ program vert_remap
      case('-h', '--help')
         print *, 'vert_remap flags: '
         print *, '  -h, --help: Returns this message.'
+        print *, '  -v, --verbose: Prints debugging messages.'
         print *, 'vert_remap arguments: '
         print *, '  nlev: Number of grid levels (cell boundaries).'
         print *, '  ncell: Number of cells (regions between levels).'
@@ -75,6 +79,8 @@ program vert_remap
         print *, '       off on the boundaries, "new" for new algorithm.'
         print *, '  seed: Seed for RNG.'
         stop
+     case('-v', '--verbose')
+        verbose = 1_int32
      case('ncell')
         call get_command_argument(ii + 1, arg)
         read(arg, *) ncell
@@ -154,7 +160,7 @@ program vert_remap
   ! Remap Qdp to grid 1
   allocate(QdpNew(ncell)) ! Remap is in-place, so we make a new array.
   QdpNew = QdpOrig
-  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, alg)
+  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, alg, verbose)
 
   ! Get density from mass
   allocate(QNew(ncell))

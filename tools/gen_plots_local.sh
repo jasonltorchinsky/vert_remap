@@ -4,14 +4,14 @@
 echo '-- Generating plots...'
 
 # Which plots to generate
-plterr=yes
-pltpwerr=yes
+plterr=no
+pltpwerr=no
 pltapprox=no
-pltmassdiff=no
+pltmassdiff=yes
 pltmasserr=no
 
 # Set run variables
-ogrid_opts=(rng)
+ogrid_opts=(cub rng sig sin sqr uni)
 tfunc_opts=(exp sig stp wdg)
 alg_opts=(on off new)
 
