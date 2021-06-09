@@ -11,14 +11,15 @@ pltmassdiff=no
 pltmasserr=no
 
 # Set run variables
-ogrid_opts=(cub rng sin sqr uni)
-tfunc_opts=(exp sig)
+ogrid_opts=(rng)
+tfunc_opts=(exp sig stp wdg)
+alg_opts=(on off new)
 
 for ogrid in ${ogrid_opts[@]}
 do
     for tfunc in ${tfunc_opts[@]}
     do
-	for alg in on off new
+	for alg in ${alg_opts[@]}
 	do
 	    python main.py --ogrid=$ogrid --tfunc=$tfunc \
 		   --plterr=$plterr --pltpwerr=$pltpwerr \

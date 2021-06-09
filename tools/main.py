@@ -64,7 +64,7 @@ for opt, arg in opts:
 ################################################################################
 # Experiment parameters
 
-ncellList = 2**np.arange(4,8,1)
+ncellList = 2**np.arange(4,16,1)
 
 
 if ogrid == 'sqr':
