@@ -1,8 +1,6 @@
 #!/bin/bash
 # Runs the vertical remapping code on a local machine.
 
-echo '-- Setting run variables...'
-
 # Set directory path variables.
 run_dir=`pwd`
 build_dir=../build
@@ -13,29 +11,36 @@ cd "$build_dir"
 rm -rf *
 cmake ..
 cmake --build .
-cd "$run_dir"
 
-echo '-- Executable built. Starting execution...'
-sleep 2
 
-# Set run variables
-cell_counts=(3)
-ogrid_opts=(sqr)
-tfunc_opts=(exp)
-rngseed=10
+exec=vert_remap
+if test -f "$exec"; then
+    # Set run variables
+    echo '-- Setting run variables...'
+    cd "$run_dir"
+    cell_counts=(3)
+    ogrid_opts=(sqr)
+    tfunc_opts=(exp)
+    rngseed=10
 
-for cells in ${cell_counts[@]}
-do
-    for ogrid in ${ogrid_opts[@]} 
+    for cells in ${cell_counts[@]}
     do
-	for tfunc in ${tfunc_opts[@]}
+	for ogrid in ${ogrid_opts[@]} 
 	do
-            for alg in new
-            do
-		gdb -tui --args $build_dir/vert_remap ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg
-            done
+	    for tfunc in ${tfunc_opts[@]}
+	    do
+		for alg in new
+		do
+		    gdb -tui --args $build_dir/vert_remap --verbose ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg
+		done
+	    done
 	done
     done
-done
+    
+    echo '-- Runs complete!'
 
-echo '-- Runs complete!'
+else
+
+    echo '-- Executable build failed!'
+
+fi

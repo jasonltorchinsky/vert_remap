@@ -4,10 +4,10 @@
 echo '-- Generating plots...'
 
 # Which plots to generate
-plterr=no
-pltpwerr=no
+plterr=yes
+pltpwerr=yes
 pltapprox=no
-pltmassdiff=yes
+pltmassdiff=no
 pltmasserr=no
 
 # Set run variables

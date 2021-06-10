@@ -1,9 +1,8 @@
 #!/bin/bash
 # Runs the vertical remapping code on a local machine.
 
-echo '-- Setting run variables...'
-
 # Set directory path variables.
+echo '-- Re-building executable...'
 run_dir=`pwd`
 build_dir=../build
 
@@ -12,28 +11,40 @@ cd "$build_dir"
 rm -rf *
 cmake ..
 cmake --build .
-cd "$run_dir"
 
-# Set run variables
-cell_counts=(3 4 5)
-ogrid_opts=(sqr)
-tfunc_opts=(exp)
-alg_opts=(new)
-rngseed=10
 
-for cells in ${cell_counts[@]}
-do
-    for ogrid in ${ogrid_opts[@]} 
+
+exec=vert_remap
+if test -f "$exec"; then
+
+    # Set run variables
+    echo '-- Setting run variables...'
+    cd "$run_dir"
+    cell_counts=(4 5 6 7 8)
+    ogrid_opts=(cub rng sig sin sqr)
+    tfunc_opts=(exp sig)
+    alg_opts=(new)
+    rngseed=42
+    
+    for cells in ${cell_counts[@]}
     do
-	for tfunc in ${tfunc_opts[@]}
+	for ogrid in ${ogrid_opts[@]} 
 	do
-            for alg in ${alg_opts[@]}
-            do
-		echo "-- Run: Grid - ${ogrid}, Test Function - ${tfunc}, Algorithm - ${alg}"
-		$build_dir/vert_remap --verbose ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg seed $rngseed
-            done
+	    for tfunc in ${tfunc_opts[@]}
+	    do
+		for alg in ${alg_opts[@]}
+		do
+		    echo "-- Run: Grid - ${ogrid}, Test Function - ${tfunc}, Algorithm - ${alg}"
+		    $build_dir/vert_remap --verbose ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg seed $rngseed
+		done
+	    done
 	done
     done
-done
+    
+    echo '-- Runs complete!'
+    
+else
 
-echo '-- Runs complete!'
+    echo '-- Executable build failed!'
+
+fi

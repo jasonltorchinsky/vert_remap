@@ -97,64 +97,9 @@ contains
     ! of multiplications from Wikipedia to get the coefficients
     ! and calculate the edge value from that.
     edgevals = 0.0_real64
-    ! Formula with singularity eliminated. NOT WORKING
-    temps_dp = 0.0_real64
     do jj = 0, ncell
-       do kk = 1, interpord
-          kidx = K(kk, jj)
-          if (kidx .ne. jj) then
-             temps_dp(1) = 1.0_real64
-             do ll = 1, interpord
-                lidx = K(ll, jj)
-                if ((lidx .ne. jj) &
-                     & .and. (lidx .ne.kidx) ) then
-                   temps_dp(1) = temps_dp(1) * (grid1(jj) - grid1(lidx)) &
-                        & / (grid1(kidx) - grid1(lidx))
-                end if
-             end do
-             edgevals(jj) = edgevals(jj) &
-                  & + totmass(kidx) / (grid1(kidx) - grid1(jj)) * temps_dp(1)
-
-          else if (kidx .eq. jj) then
-             temps_dp(1) = 0.0_real64
-             do ll = 1, interpord
-                lidx = K(ll, jj)
-                if (lidx .ne. jj) then
-                   temps_dp(1) = temps_dp(1) + (1.0_real64 / (grid1(jj) - grid1(lidx)))
-                end if
-             end do
-             edgevals(jj) = edgevals(jj) &
-                  & + totmass(kidx) * temps_dp(1)
-          end if
-       end do
+       edgevals(jj) = get_edgeval(ncell, interpord, K(:,jj), grid1, totmass, jj)
     end do
-
-!!$    ! Vandermonde inversion
-!!$    edgevals = 0.0_real64
-!!$    do jj = 0, ncell
-!!$       A = 0.0_real64
-!!$       x = 0.0_real64
-!!$       b = 0.0_real64
-!!$       do kk = 1, interpord ! We can either access the entry of K once...
-!!$          kidx = K(kk, jj)
-!!$          temps_dp(1) = grid1(kidx)
-!!$          do mm = 1, interpord ! or go through this array contiguously.
-!!$             ! I'm not sure which saves more time.
-!!$             A(kk, mm) = temps_dp(1)**(interpord - mm)
-!!$          end do
-!!$          b(kk) = totmass(kidx)
-!!$       end do
-!!$       call dsgesv(interpord, 1, A, interpord, ipiv, b, interpord, x, &
-!!$            & interpord, work, swork, temps_int(1), temps_int(2))
-!!$       if (temps_int(2) .ne. 0_int32) then ! Matrix solve for polynomial interpolant failed.
-!!$          print *, ' ~~ Matrix solve for polynomial interpoalnt for PPM failed.'
-!!$          print *, ' ~~ dsgesv error flag:', temps_int(2)
-!!$          print *, ' ~~ Continuing anyway...'
-!!$       end if
-!!$       do kk = 1, interpord-1
-!!$          edgevals(jj) = edgevals(jj) + (interpord-kk)*x(kk)*(grid1(jj)**(interpord-kk-1)) 
-!!$       end do
-!!$    end do
 
     ! Now we figure out which edge value estimates need to be limited
     ! Limiter at left boundary
@@ -185,469 +130,52 @@ contains
     ! near the boundary we don't have quite enough information.
     do jj = 0, ncell
        if (limreq(jj) .eq. 1) then ! Limiting is required, do calculations
-          temps_dp = 0.0_real64
-          if (jj .eq. 0) then
-
-             ! Left domain boundary
-             temps_dp(1) = 8.0_real64 * &
-                  & ( edgevals(0) / (dp1(1) * (2.0_real64 * dp1(1) + dp1(2))) &
-                  &   - avgdens1(1) / (dp1(1) * (dp1(1) + dp1(2))) &
-                  &   + avgdens1(2) / ((dp1(1) + dp1(2)) * (2.0_real64 * dp1(1) + dp1(2))) )
-             temps_dp(2) = 8.0_real64 * &
-                  & ( avgdens1(1) / ((dp1(1) + dp1(2)) * (dp1(1) + 2.0_real64 * dp1(2) + dp1(3))) &
-                  &   - avgdens1(2) / ((dp1(1) + dp1(2)) * (dp1(2) + dp1(3))) &
-                  &   + avgdens1(3) / ((dp1(2) + dp1(3)) * (dp1(1) + 2.0_real64 * dp1(2) + dp1(3))) )
-
-             ! Check is approxs have same sign
-             if (temps_dp(1) * temps_dp(2) .gt. 0) then
-                temps_dp(1) = sign(min(C * abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1))
-             else
-                temps_dp(1) = 0.0_real64
-             end if
-
-             ! Set temps_dp(2) to grid spacing for correction
-             temps_dp(2) = (dp1(1) + dp1(2)) / 2.0_real64
-
-             edgevals(0) = avgdens1(1) + (temps_dp(2))**2/4.0_real64 * temps_dp(1)
-
-          else if (jj .eq. 1) then
-             ! Right boundary of leftmost cell
-             temps_dp(1) = 8.0_real64 * &
-                  & ( avgdens1(1) / (dp1(1) * (dp1(2) + dp1(1))) &
-                  &   - edgevals(1) / (dp1(1) * dp1(2)) &
-                  &   + avgdens1(2) / (dp1(2) * (dp1(2) + dp1(1))) )
-             temps_dp(2) = 8.0_real64 * &
-                  & ( avgdens1(1) / (dp1(2) * (dp1(3) + dp1(2))) &
-                  &   - avgdens1(2) / (dp1(2) * dp1(3)) &
-                  &   + avgdens1(3) / (dp1(3) * (dp1(3) + dp1(2))) )
-
-             ! Check is approxs have same sign
-             if (temps_dp(1) * temps_dp(2) .gt. 0) then
-                temps_dp(1) = sign(min(C * abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1))
-             else
-                temps_dp(1) = 0.0_real64
-             end if
-
-             ! Set temps_dp(2) to grid spacing for correction
-             temps_dp(2) = (dp1(1) + dp1(2)) / 2.0_real64
-
-             edgevals(1) = (avgdens1(1) + avgdens1(2))/2.0_real64 - (temps_dp(2))**2/4.0_real64 * temps_dp(1)
-
-          else if (jj .eq. ncell-1) then
-             ! Left boundary of rightmost cell
-             temps_dp(1) = 8.0_real64 * &
-                  & ( avgdens1(ncell-1) / (dp1(ncell-1) * (dp1(ncell) + dp1(ncell-1))) &
-                  &   - edgevals(ncell-1) / (dp1(ncell-1) * dp1(ncell)) &
-                  &   + avgdens1(ncell) / (dp1(ncell) * (dp1(ncell) + dp1(ncell-1))) )
-             temps_dp(2) = 8.0_real64 * &
-                  & ( avgdens1(ncell-2) / (dp1(ncell-1) * (dp1(ncell) + dp1(ncell-1))) &
-                  &   - avgdens1(ncell-1) / (dp1(ncell-1) * dp1(ncell)) &
-                  &   + avgdens1(ncell) / (dp1(ncell) * (dp1(ncell) + dp1(ncell-1))) )
-
-             ! Check is approxs have same sign
-             if (temps_dp(1) * temps_dp(2) .gt. 0) then
-                temps_dp(1) = sign(min(C * abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1))
-             else
-                temps_dp(1) = 0.0_real64
-             end if
-
-             ! Set temps_dp(2) to grid spacing for correction
-             temps_dp(2) = (dp1(ncell-1) + dp1(ncell)) / 2.0_real64
-
-             edgevals(ncell-1) = (avgdens1(ncell-1) + avgdens1(ncell))/2.0_real64 - (temps_dp(2))**2/4.0_real64 * temps_dp(1)   
-
-          else if (jj .eq. ncell) then ! Right domain boundary
-             temps_dp(1) = 8.0_real64 * &
-                  & ( avgdens1(ncell-1) / ((dp1(ncell) + dp1(ncell-1) * (2.0_real64 * dp1(ncell) + dp1(ncell-1)))) &
-                  &   - avgdens1(ncell) / (dp1(ncell) * (dp1(ncell) + dp1(ncell-1))) &
-                  &   + edgevals(ncell) / (dp1(ncell) * (2.0_real64 * dp1(ncell) + dp1(ncell-1))) )
-             temps_dp(2) = 8.0_real64 * &
-                  & ( avgdens1(ncell-2) / ((dp1(ncell-1) + dp1(ncell-2)) &
-                  &                         * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) &
-                  &   - avgdens1(ncell-1) / ((dp1(ncell) + dp1(ncell-1)) * (dp1(ncell-1) + dp1(ncell-2))) &
-                  &   + avgdens1(ncell) / ((dp1(ncell) + dp1(ncell-1)) * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) )
-
-             ! Check is approxs have same sign
-             if (temps_dp(1) * temps_dp(2) .gt. 0) then
-                temps_dp(1) = sign(min(C * abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1))
-             else
-                temps_dp(1) = 0.0_real64
-             end if
-
-             ! Set temps_dp(2) to grid spacing for correction
-             temps_dp(2) = (dp1(1) + dp1(2)) / 2.0_real64
-
-             edgevals(ncell) = avgdens1(ncell) + (temps_dp(2))**2/4.0_real64 * temps_dp(1)
-
-          else ! Boundaries of interior cells
-             temps_dp(1) = 8.0_real64 * &
-                  & ( avgdens1(jj) / (dp1(jj) * (dp1(jj+1) + dp1(jj))) &
-                  &   - edgevals(jj) / (dp1(jj) * dp1(jj+1)) &
-                  &   + avgdens1(jj+1) / (dp1(jj+1) * (dp1(jj+1) + dp1(jj))) )
-             temps_dp(2) = 8.0_real64 * &
-                  & ( avgdens1(jj-1) / (dp1(jj-1) * (dp1(jj+1) + dp1(jj) + dp1(jj-1))) &
-                  &   - avgdens1(jj) / (dp1(jj-1) * (dp1(jj+1) + dp1(jj))) &
-                  &   + avgdens1(jj+1) / ((dp1(jj+1) + dp1(jj)) * (dp1(jj+1) + dp1(jj) + dp1(jj-1))) )
-             temps_dp(3) = 8.0_real64 * &
-                  & ( avgdens1(jj) / ((dp1(jj+1) + dp1(jj)) * (dp1(jj+2) + 2.0_real64 * dp1(jj+1) + dp1(jj))) &
-                  &   - avgdens1(jj+1) / ((dp1(jj+1) + dp1(jj)) * (dp1(jj+2) + dp1(jj+1))) &
-                  &   + avgdens1(jj+2) / ((dp1(jj+2) + dp1(jj+1)) * (dp1(jj+2) + 2.0_real64 * dp1(jj+1) + dp1(jj))) )
-
-             ! Check if approxs have same sign
-             if ((temps_dp(1) * temps_dp(2) .gt. 0) &
-                  & .and. (temps_dp(2) * temps_dp(3) .gt. 0)) then
-                temps_dp(1) = sign(min(abs(temps_dp(1)), C * abs(temps_dp(2)), C * abs(temps_dp(3))), temps_dp(1))
-             else
-                temps_dp(1) = 0.0_real64
-             end if
-
-             ! Set temps_dp(2) to grid spacing for correction
-             temps_dp(2) = (dp1(jj) + dp1(jj+1)) / 2.0_real64
-
-             edgevals(jj) = (avgdens1(jj) + avgdens1(jj+1))/2.0_real64 + (temps_dp(2))**2/4.0_real64 * temps_dp(1)
-
-          end if
-
+          edgevals(jj) = correct_edgeval(ncell, dp1, avgdens1, edgevals(jj), C, jj)
        end if
     end do
-    
+
     ! /Constructing the parabolic interpolant./
     ! First we fill in the preliminary parabolic interpolant parameters for
     ! each cell. In the same loop, we correct the values appropriately.
     ! This loop can definitely be streamlined, I just wanted it to match the write up for easier debugging.
-    
+
     do jj = 1, ncell
-       ! Reset temps_dp for new use.
-       temps_dp = 0.0_real64
        parabvals(1, jj) = edgevals(jj-1) ! aj,-
        parabvals(2, jj) = edgevals(jj)   ! aj,+
-       
-       ! The boundary cells must be handled differently than Colella08.
-       if (jj .eq. 1) then ! Leftmost cell
-          if ((parabvals(2, 1) - avgdens1(1)) * (avgdens1(1) - parabvals(1, 1)) .le. 0.0_real64) then ! At local extremum
-             temps_dp(1) = 4.0_real64 / (dp1(1)**2) * (parabvals(1, 1) - 2.0_real64 * avgdens1(1) + parabvals(2, 1))
-             temps_dp(2) = 8.0_real64 * &
-                  & (avgdens1(1) / ((dp1(2) + dp1(1)) * (dp1(3) + 2.0_real64 * dp1(2) + dp1(1))) &
-                  &  - avgdens1(2) / ((dp1(2) + dp1(1)) * (dp1(3) + dp1(2))) &
-                  &  + avgdens1(3) / ((dp1(3) + dp1(2)) * (dp1(3) + 2.0_real64 * dp1(2) + dp1(1))) )
-
-             ! Check if second derivative signs match. Put D^2a_1,lim in temps_dp(2)
-             if (temps_dp(1) * temps_dp(2) .gt. 0.0_real64) then
-                temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1) )
-             else
-                temps_dp(2) = 0.0_real64
-             end if
-
-             ! Correct parabolic piece values
-             if (temps_dp(1) .ne. 0) then
-                parabvals(1, 1) = avgdens1(1) + (parabvals(1, 1) - avgdens1(1)) * temps_dp(2) / temps_dp(1)
-                parabvals(2, 1) = avgdens1(1) + (parabvals(2, 1) - avgdens1(1)) * temps_dp(2) / temps_dp(1)
-             else
-                parabvals(1, 1) = avgdens1(1)
-                parabvals(2, 1) = avgdens1(1)
-             end if
-             
-          else ! Not at local extremum
-             ! Set s in temps_int(1)
-             if (avgdens1(2) - avgdens1(1) .gt. 0.0_real64) then
-                temps_int(1) = 1_int32
-             else
-                temps_int(1) = -1_int32
-             end if
-
-             temps_dp(1) = parabvals(1, 1) - avgdens1(1) ! alpha_{1,-}
-             temps_dp(2) = parabvals(2, 1) - avgdens1(1) ! alpha_{1,+}
-
-             if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-                temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-                temps_dp(4) = avgdens1(2) - avgdens1(1) ! delta a
-                if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-                   parabvals(2, 1) = avgdens1(1) &
-                        & - 2.0_real64 * (temps_dp(4) &
-                        &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1, 1)))
-                end if
-             end if
-
-          end if
-
-          parabvals(3, 1) = 6.0_real64 * avgdens1(1) - 3.0_real64 * (parabvals(1, 1) + parabvals(2, 1))
-          
-       else if (jj .eq. 2) then ! Second leftmost cell
-          if (((parabvals(2, 2) - avgdens1(2)) * (avgdens1(2) - parabvals(1, 2)) .le. 0.0_real64) &
-               & .or. ((avgdens1(3) - avgdens1(2)) * (avgdens1(2) - avgdens1(1)) .le. 0.0_real64)) then ! At local extremum
-             temps_dp(1) = 4.0_real64 / (dp1(2)**2) * (parabvals(1, 2) - 2.0_real64 * avgdens1(2) + parabvals(2, 2))
-             temps_dp(2) = 8.0_real64 * &
-                  & (avgdens1(1) / ((dp1(2) + dp1(1)) * (dp1(3) + 2.0_real64 * dp1(2) + dp1(1))) &
-                  &  - avgdens1(2) / ((dp1(2) + dp1(1)) * (dp1(3) + dp1(2))) &
-                  &  + avgdens1(3) / ((dp1(3) + dp1(2)) * (dp1(3) + 2.0_real64 * dp1(2) + dp1(1))) )
-             temps_dp(3) = 8.0_real64 * &
-                  & (avgdens1(2) / ((dp1(3) + dp1(2)) * (dp1(4) + 2.0_real64 * dp1(3) + dp1(2))) &
-                  &  - avgdens1(3) / ((dp1(3) + dp1(2)) * (dp1(4) + dp1(3))) &
-                  &  + avgdens1(4) / ((dp1(4) + dp1(3)) * (dp1(4) + 2.0_real64 * dp1(3) + dp1(2))) )
-
-             ! Check if second derivative signs match. Put D^2a_1,lim in temps_dp(2)
-             if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
-                  & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64)) then
-                temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2)), C * abs(temps_dp(3))), temps_dp(1) )
-             else
-                temps_dp(2) = 0.0_real64
-             end if
-
-             ! Correct parabolic piece values
-             if (temps_dp(1) .ne. 0) then
-                parabvals(1, 2) = avgdens1(2) + (parabvals(1, 2) - avgdens1(2)) * temps_dp(2) / temps_dp(1)
-                parabvals(2, 2) = avgdens1(2) + (parabvals(2, 2) - avgdens1(2)) * temps_dp(2) / temps_dp(1)
-             else
-                parabvals(1, 2) = avgdens1(2)
-                parabvals(2, 2) = avgdens1(2)
-             end if
-             
-          else ! Not at local extremum
-             ! Set s in temps_int(1)
-             if (avgdens1(3) - avgdens1(1) .gt. 0.0_real64) then
-                temps_int(1) = 1_int32
-             else
-                temps_int(1) = -1_int32
-             end if
-
-             temps_dp(1) = parabvals(1, 2) - avgdens1(2) ! alpha_{2,-}
-             temps_dp(2) = parabvals(2, 2) - avgdens1(2) ! alpha_{2,+}
-
-             if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-                temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-                temps_dp(4) = avgdens1(3) - avgdens1(2) ! delta a
-                if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-                   parabvals(2, 2) = avgdens1(2) &
-                        & - 2.0_real64 * (temps_dp(4) &
-                        &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1, 2)))
-
-                end if
-                
-             else if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-                temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-                temps_dp(4) = avgdens1(1) - avgdens1(2) ! delta a
-                if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-                   parabvals(1, 2) = avgdens1(2) &
-                        & - 2.0_real64 * (temps_dp(4) &
-                        &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2, 2)))
-
-                end if
-             end if
-          end if
-
-          parabvals(3, 2) = 6.0_real64 * avgdens1(2) - 3.0_real64 * (parabvals(1, 2) + parabvals(2, 2))
-
-       else if (jj .eq. ncell - 1) then ! Second rightmost cell
-          if (((parabvals(2, ncell-1) - avgdens1(ncell-1)) * (avgdens1(ncell-1) - parabvals(1, ncell-1)) .le. 0.0_real64) &
-               & .or. ((avgdens1(ncell) - avgdens1(ncell-1)) * (avgdens1(ncell-1) - avgdens1(ncell-2)) .le. 0.0_real64)) then ! At local extremum
-             temps_dp(1) = 4.0_real64 / (dp1(ncell-1)**2) &
-                  & * (parabvals(1, ncell-1) - 2.0_real64 * avgdens1(ncell-1) + parabvals(2, ncell-1))
-             temps_dp(2) = 8.0_real64 * &
-                  & (avgdens1(ncell-3) / ((dp1(ncell-2) + dp1(ncell-3)) &
-                  &                        * (dp1(ncell-1) + 2.0_real64 * dp1(ncell-2) + dp1(ncell-3))) &
-                  &  - avgdens1(ncell-2) / ((dp1(ncell-2) + dp1(ncell-3)) &
-                  &                          * (dp1(ncell-1) + dp1(ncell-2))) &
-                  &  + avgdens1(ncell-1) / ((dp1(ncell-1) + dp1(ncell-2)) &
-                  &                         * (dp1(ncell-1) + 2.0_real64 * dp1(ncell-2) + dp1(ncell-3))) )
-             temps_dp(3) = 8.0_real64 * &
-                  & (avgdens1(ncell-2) / ((dp1(ncell-1) + dp1(ncell-2)) &
-                  &                        * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) &
-                  &  - avgdens1(ncell-1) / ((dp1(ncell-1) + dp1(ncell-2)) &
-                  &                          * (dp1(ncell) + dp1(ncell-1))) &
-                  &  + avgdens1(ncell) / ((dp1(ncell) + dp1(ncell-1)) &
-                  &                        * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) )
-
-             ! Check if second derivative signs match. Put D^2a_n-1,lim in temps_dp(2)
-             if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
-                  & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64)) then
-                temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2)), C * abs(temps_dp(3))), temps_dp(1) )
-             else
-                temps_dp(2) = 0.0_real64
-             end if
-
-             ! Correct parabolic piece values
-             if (temps_dp(1) .ne. 0) then
-                parabvals(1, ncell-1) = avgdens1(ncell-1) + (parabvals(1, ncell-1) - avgdens1(ncell-1)) * temps_dp(2) / temps_dp(1)
-                parabvals(2, ncell-1) = avgdens1(ncell-1) + (parabvals(2, ncell-1) - avgdens1(ncell-1)) * temps_dp(2) / temps_dp(1)
-             else
-                parabvals(1, ncell-1) = avgdens1(ncell-1)
-                parabvals(2, ncell-1) = avgdens1(ncell-1)
-             end if
-             
-          else ! Not at local extremum
-             ! Set s in temps_int(1)
-             if (avgdens1(ncell) - avgdens1(ncell-2) .gt. 0.0_real64) then
-                temps_int(1) = 1_int32
-             else
-                temps_int(1) = -1_int32
-             end if
-
-             temps_dp(1) = parabvals(1, ncell-1) - avgdens1(ncell-1) ! alpha_{n-1,-}
-             temps_dp(2) = parabvals(2, ncell-1) - avgdens1(ncell-1) ! alpha_{n-1,+}
-
-             if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-                temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-                temps_dp(4) = avgdens1(ncell) - avgdens1(ncell-1) ! delta a
-                if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-                   parabvals(2, ncell-1) = avgdens1(ncell-1) &
-                        & - 2.0_real64 * (temps_dp(4) &
-                        &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1, ncell-1)))
-
-                end if
-                
-             else if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-                temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-                temps_dp(4) = avgdens1(ncell-2) - avgdens1(ncell-1) ! delta a
-                if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-                   parabvals(1, ncell-1) = avgdens1(ncell-1) &
-                        & - 2.0_real64 * (temps_dp(4) &
-                        &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2, ncell-1)))
-
-                end if
-             end if
-          end if
-
-          parabvals(3, ncell-1) = 6.0_real64 * avgdens1(ncell-1) - 3.0_real64 * (parabvals(1, ncell-1) + parabvals(2, ncell-1))
-
-       else if (jj .eq. ncell) then ! Rightmost cell
-          if ((parabvals(2, ncell) - avgdens1(ncell)) * (avgdens1(ncell) - parabvals(1, ncell)) .le. 0.0_real64) then ! At local extremum
-             temps_dp(1) = 4.0_real64 / (dp1(ncell)**2) * (parabvals(1, ncell) - 2.0_real64 * avgdens1(ncell) + parabvals(2, ncell))
-             temps_dp(2) = 8.0_real64 * &
-                  & (avgdens1(ncell-2) / ((dp1(ncell-1) + dp1(ncell-2)) * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) &
-                  &  - avgdens1(ncell-1) / ((dp1(ncell-1) + dp1(ncell-2)) * (dp1(ncell) + dp1(ncell-1))) &
-                  &  + avgdens1(ncell) / ((dp1(ncell) + dp1(ncell-1)) * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) )
-
-             ! Check if second derivative signs match. Put D^2a_n,lim in temps_dp(2)
-             if (temps_dp(1) * temps_dp(2) .gt. 0.0_real64) then
-                temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1) )
-             else
-                temps_dp(2) = 0.0_real64
-             end if
-
-             ! Correct parabolic piece values
-             if (temps_dp(1) .ne. 0) then
-                parabvals(1, ncell) = avgdens1(ncell) + (parabvals(1, ncell) - avgdens1(ncell)) * temps_dp(2) / temps_dp(1)
-                parabvals(2, ncell) = avgdens1(ncell) + (parabvals(2, ncell) - avgdens1(ncell)) * temps_dp(2) / temps_dp(1)
-             else
-                parabvals(1, ncell) = avgdens1(ncell)
-                parabvals(2, ncell) = avgdens1(ncell)
-             end if
-             
-          else ! Not at local extremum
-             ! Set s in temps_int(1)
-             if (avgdens1(ncell) - avgdens1(ncell-1) .gt. 0.0_real64) then
-                temps_int(1) = 1_int32
-             else
-                temps_int(1) = -1_int32
-             end if
-
-             temps_dp(1) = parabvals(1, ncell) - avgdens1(ncell) ! alpha_{n,-}
-             temps_dp(2) = parabvals(2, ncell) - avgdens1(ncell) ! alpha_{n,+}
-
-             if (abs(temps_dp(1)) .gt. 2.0_real64 * abs(temps_dp(2))) then
-                temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-                temps_dp(4) = avgdens1(ncell-1) - avgdens1(ncell) ! delta a
-                if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-                   parabvals(1, ncell) = avgdens1(ncell) &
-                        & - 2.0_real64 * (temps_dp(4) &
-                        &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2, ncell)))
-                end if
-             end if
-
-          end if
-
-          parabvals(3, ncell) = 6.0_real64 * avgdens1(ncell) - 3.0_real64 * (parabvals(1, ncell) + parabvals(2, ncell))
-
-       else ! Interior cell
-          if (((parabvals(2, jj) - avgdens1(jj)) * (avgdens1(jj) - parabvals(1, jj)) .le. 0.0_real64) &
-               & .or. ((avgdens1(jj+1) - avgdens1(jj)) * (avgdens1(jj) - avgdens1(jj-1)) .le. 0.0_real64)) then ! At local extremum
-             temps_dp(1) = 4.0_real64 / (dp1(jj)**2) * (parabvals(1, jj) - 2.0_real64 * avgdens1(jj) + parabvals(2, jj))
-             temps_dp(2) = 8.0_real64 * &
-                  & (avgdens1(jj-2) / ((dp1(jj-1) + dp1(jj-2)) * (dp1(jj) + 2.0_real64 * dp1(jj-1) + dp1(jj-2))) &
-                  &  - avgdens1(jj-1) / ((dp1(jj-1) + dp1(jj-2)) * (dp1(jj) + dp1(jj-1))) &
-                  &  + avgdens1(jj) / ((dp1(jj) + dp1(jj-1)) * (dp1(jj) + 2.0_real64 * dp1(jj-1) + dp1(jj-2))) )
-             temps_dp(3) = 8.0_real64 * &
-                  & (avgdens1(jj-1) / ((dp1(jj) + dp1(jj-1)) * (dp1(jj+1) + 2.0_real64 * dp1(jj) + dp1(jj-1))) &
-                  &  - avgdens1(jj) / ((dp1(jj) + dp1(jj-1)) * (dp1(jj+1) + dp1(jj))) &
-                  &  + avgdens1(jj+1) / ((dp1(jj+1) + dp1(jj)) * (dp1(jj+1) + 2.0_real64 * dp1(jj) + dp1(jj-1))) )
-             temps_dp(4) = 8.0_real64 * &
-                  & (avgdens1(jj) / ((dp1(jj+1) + dp1(jj)) * (dp1(jj+2) + 2.0_real64 * dp1(jj+1) + dp1(jj))) &
-                  &  - avgdens1(jj+1) / ((dp1(jj+1) + dp1(jj)) * (dp1(jj+2) + dp1(jj+1))) &
-                  &  + avgdens1(jj+2) / ((dp1(jj+2) + dp1(jj+1)) * (dp1(jj+2) + 2.0_real64 * dp1(jj+1) + dp1(jj))) )
-
-             ! Check if second derivative signs match. Put D^2a_n,lim in temps_dp(2)
-             if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
-                  & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64) &
-                  & .and. (temps_dp(3) * temps_dp(4) .gt. 0.0_real64)) then
-                temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2)), &
-                     &                  C * abs(temps_dp(3)), C * abs(temps_dp(4))), temps_dp(1) )
-             else
-                temps_dp(2) = 0.0_real64
-             end if
-
-             ! Correct parabolic piece values
-             if (temps_dp(1) .ne. 0) then
-                parabvals(1, jj) = avgdens1(jj) + (parabvals(1, jj) - avgdens1(jj)) * temps_dp(2) / temps_dp(1)
-                parabvals(2, jj) = avgdens1(jj) + (parabvals(2, jj) - avgdens1(jj)) * temps_dp(2) / temps_dp(1)
-             else
-                parabvals(1, jj) = avgdens1(jj)
-                parabvals(2, jj) = avgdens1(jj)
-             end if
-             
-          else ! Not at local extremum
-             ! Set s in temps_int(1)
-             if (avgdens1(jj+1) - avgdens1(jj-1) .gt. 0.0_real64) then
-                temps_int(1) = 1_int32
-             else
-                temps_int(1) = -1_int32
-             end if
-
-             temps_dp(1) = parabvals(1, jj) - avgdens1(jj) ! alpha_{j,-}
-             temps_dp(2) = parabvals(2, jj) - avgdens1(jj) ! alpha_{j,+}
-
-             if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-                temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-                temps_dp(4) = avgdens1(jj+1) - avgdens1(jj) ! delta a
-                if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-                   parabvals(2, jj) = avgdens1(jj) &
-                        & - 2.0_real64 * (temps_dp(4) &
-                        &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1, jj)))
-
-                end if
-                
-             else if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-                temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-                temps_dp(4) = avgdens1(jj-1) - avgdens1(jj) ! delta a
-                if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-                   parabvals(1, jj) = avgdens1(jj) &
-                        & - 2.0_real64 * (temps_dp(4) &
-                        &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2, jj)))
-
-                end if
-             end if
-          end if
-
-          parabvals(3, jj) = 6.0_real64 * avgdens1(jj) - 3.0_real64 * (parabvals(1, jj) + parabvals(2, jj))
-
-       end if
-
+       call correct_parabvals(ncell, dp1, avgdens1, parabvals(:, jj), C, jj)
     end do
 
     ! Check that each parabolic piece is monotone
     if (verbosity .eq. 1_int32) then
+       temps_int(1) = 0_int32
        do jj = 1, ncell
-          temps_dp(1) = 6.0_real64 * dp1(jj) * avgdens1(jj) - 3.0_real64 * (parabvals(1, jj) + parabvals(2, jj))
-          temps_dp(2) = 3.0_real64 * dp1(jj) * avgdens1(jj) - (2.0_real64 * parabvals(1, jj) + parabvals(2, jj))
-          if (abs(temps_dp(1)) .le. 1.0e-10_real64) then
-             ! Is monotone.
-             continue
-          else if ((temps_dp(2) / temps_dp(1) .ge. 0.0_real64) &
-               & .and. (temps_dp(2) / temps_dp(1) .le. 1.0_real64)) then
-             ! Is not monotone
-             print *, '~~ !WARNING! The following piece is not monotone: ', jj
+          if (parab_piece_monotone_check(ncell, parabvals(:, jj), jj) .eq. 0_int32) then ! If not monotone, trip flag.
+             temps_int(1) = 1_int32
+             !print *, '  ~~ !WARNING! Parabolic piece is not monotone:', jj
           end if
        end do
+
+       if (temps_int(1) .eq. 1_int32) then
+          print *, '  ~~ !WARNING! At least one parabolic piece is not monotone.'
+       end if
     end if
+
+    ! Check that each parabolic piece is bounds-preserving
+    if (verbosity .eq. 1_int32) then
+       temps_int(1) = 0_int32
+       do jj = 1, ncell
+          if (parab_piece_local_bnd_preserve_check(ncell, parabvals(:, jj), avgdens1, jj) .eq. 0_int32) then ! If not
+             ! bounds-preserving, trip flag.
+             temps_int(1) = 1_int32
+             print *, '  ~~ !WARNING! Parabolic piece is not bounds-preserving:', jj
+          end if
+       end do
+
+       if (temps_int(1) .eq. 1_int32) then
+          !print *, '  ~~ !WARNING! At least one parabolic piece is not bounds-preserving.'
+       end if
+    end if
+
 
     ! Now I have the piecewise parabolic reconstruction, now I have to get the mass in each of the new cells.
     ! I want a neat formula for integrating the piecewise parabolic reeconstruction.
@@ -715,6 +243,528 @@ contains
 
   end subroutine new_remap_sbr
 
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ! Gets the edge value approximation.
+  ! In particular, gets the derivtaive of a interpolated polynomial for
+  ! the cumulative mass function
+
+  function get_edgeval(ncell, interpord, K, grid1, totmass, cell) result(edgeval)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in) :: ncell ! Number of cells
+    integer(int32), intent(in) :: interpord ! Order of polynomial interpolation
+    integer(int32), intent(in) :: K(interpord) ! Points for polynomial intrpolation
+    real(real64), intent(in) :: grid1(0:ncell) ! Grid points of original grid
+    real(real64), intent(in) :: totmass(0:ncell) ! Cumulative mass function
+    integer(int32), intent(in) :: cell ! Cell we are working with
+    real(real64) :: edgeval !Approximated edge value
+    integer(int32) :: kk, kidx, ll, lidx ! For iteration
+    real(real64) :: temps_dp(3) ! Array for storing working variables (real)
+
+    temps_dp = 0.0_real64
+    edgeval = 0.0_real64
+    do kk = 1, interpord
+       kidx = K(kk)
+       if (kidx .ne. cell) then
+          temps_dp(1) = 1.0_real64
+          do ll = 1, interpord
+             lidx = K(ll)
+             if ((lidx .ne. cell) &
+                  & .and. (lidx .ne.kidx) ) then
+                temps_dp(1) = temps_dp(1) * (grid1(cell) - grid1(lidx)) &
+                     & / (grid1(kidx) - grid1(lidx))
+             end if
+          end do
+          edgeval = edgeval + totmass(kidx) / (grid1(kidx) - grid1(cell)) * temps_dp(1)
+
+       else if (kidx .eq. cell) then
+          temps_dp(1) = 0.0_real64
+          do ll = 1, interpord
+             lidx = K(ll)
+             if (lidx .ne. cell) then
+                temps_dp(1) = temps_dp(1) + (1.0_real64 / (grid1(cell) - grid1(lidx)))
+             end if
+          end do
+          edgeval = edgeval + totmass(kidx) * temps_dp(1)
+       end if
+    end do
+
+  end function get_edgeval
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ! First step of the limiter, make sure edge values are monotone with neighboring cell averages.
+  function correct_edgeval(ncell, dp1, avgdens, edgeval, C, cell) result(corr_edgeval)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in) :: ncell ! Number of cells in the grid
+    real(real64), intent(in) :: dp1(ncell) ! Width of cells on original grid
+    real(real64), intent(in) :: avgdens(ncell) ! Average density of original cells
+    real(real64), intent(in) :: edgeval ! Original edge value
+    real(real64), intent(in) :: C ! Scale factor for second derivative approximations
+    integer(int32), intent(in) :: cell ! Current cell we are correcting the edge value for
+    real(real64) :: corr_edgeval ! Corrected edge value
+    real(real64) :: temps_dp(4) ! Holds working real variables
+
+    temps_dp = 0.0_real64
+    if (cell .eq. 0) then
+
+       ! Left domain boundary
+       temps_dp(1) = 8.0_real64 * &
+            & ( edgeval / (dp1(1) * (2.0_real64 * dp1(1) + dp1(2))) &
+            &   - avgdens(1) / (dp1(1) * (dp1(1) + dp1(2))) &
+            &   + avgdens(2) / ((dp1(1) + dp1(2)) * (2.0_real64 * dp1(1) + dp1(2))) )
+       temps_dp(2) = 8.0_real64 * &
+            & ( avgdens(1) / ((dp1(1) + dp1(2)) * (dp1(1) + 2.0_real64 * dp1(2) + dp1(3))) &
+            &   - avgdens(2) / ((dp1(1) + dp1(2)) * (dp1(2) + dp1(3))) &
+            &   + avgdens(3) / ((dp1(2) + dp1(3)) * (dp1(1) + 2.0_real64 * dp1(2) + dp1(3))) )
+
+       ! Check is approxs have same sign
+       if (temps_dp(1) * temps_dp(2) .gt. 0) then
+          temps_dp(1) = sign(min(C * abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1))
+       else
+          temps_dp(1) = 0.0_real64
+       end if
+
+       ! Set temps_dp(2) to grid spacing for correction
+       temps_dp(2) = (dp1(1) + dp1(2)) / 2.0_real64
+
+       corr_edgeval = avgdens(1) + (temps_dp(2))**2/4.0_real64 * temps_dp(1)
+
+    else if (cell .eq. 1) then
+       ! Right boundary of leftmost cell
+       temps_dp(1) = 8.0_real64 * &
+            & ( avgdens(1) / (dp1(1) * (dp1(2) + dp1(1))) &
+            &   - edgeval / (dp1(1) * dp1(2)) &
+            &   + avgdens(2) / (dp1(2) * (dp1(2) + dp1(1))) )
+       temps_dp(2) = 8.0_real64 * &
+            & ( avgdens(1) / (dp1(2) * (dp1(3) + dp1(2))) &
+            &   - avgdens(2) / (dp1(2) * dp1(3)) &
+            &   + avgdens(3) / (dp1(3) * (dp1(3) + dp1(2))) )
+
+       ! Check is approxs have same sign
+       if (temps_dp(1) * temps_dp(2) .gt. 0) then
+          temps_dp(1) = sign(min(C * abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1))
+       else
+          temps_dp(1) = 0.0_real64
+       end if
+
+       ! Set temps_dp(2) to grid spacing for correction
+       temps_dp(2) = (dp1(1) + dp1(2)) / 2.0_real64
+
+       corr_edgeval = (avgdens(1) + avgdens(2))/2.0_real64 - (temps_dp(2))**2/4.0_real64 * temps_dp(1)
+
+    else if (cell .eq. ncell-1) then
+       ! Left boundary of rightmost cell
+       temps_dp(1) = 8.0_real64 * &
+            & ( avgdens(ncell-1) / (dp1(ncell-1) * (dp1(ncell) + dp1(ncell-1))) &
+            &   - edgeval / (dp1(ncell-1) * dp1(ncell)) &
+            &   + avgdens(ncell) / (dp1(ncell) * (dp1(ncell) + dp1(ncell-1))) )
+       temps_dp(2) = 8.0_real64 * &
+            & ( avgdens(ncell-2) / (dp1(ncell-1) * (dp1(ncell) + dp1(ncell-1))) &
+            &   - avgdens(ncell-1) / (dp1(ncell-1) * dp1(ncell)) &
+            &   + avgdens(ncell) / (dp1(ncell) * (dp1(ncell) + dp1(ncell-1))) )
+
+       ! Check is approxs have same sign
+       if (temps_dp(1) * temps_dp(2) .gt. 0) then
+          temps_dp(1) = sign(min(C * abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1))
+       else
+          temps_dp(1) = 0.0_real64
+       end if
+
+       ! Set temps_dp(2) to grid spacing for correction
+       temps_dp(2) = (dp1(ncell-1) + dp1(ncell)) / 2.0_real64
+
+       corr_edgeval = (avgdens(ncell-1) + avgdens(ncell))/2.0_real64 - (temps_dp(2))**2/4.0_real64 * temps_dp(1)   
+
+    else if (cell .eq. ncell) then ! Right domain boundary
+       temps_dp(1) = 8.0_real64 * &
+            & ( avgdens(ncell-1) / ((dp1(ncell) + dp1(ncell-1) * (2.0_real64 * dp1(ncell) + dp1(ncell-1)))) &
+            &   - avgdens(ncell) / (dp1(ncell) * (dp1(ncell) + dp1(ncell-1))) &
+            &   + edgeval / (dp1(ncell) * (2.0_real64 * dp1(ncell) + dp1(ncell-1))) )
+       temps_dp(2) = 8.0_real64 * &
+            & ( avgdens(ncell-2) / ((dp1(ncell-1) + dp1(ncell-2)) &
+            &                         * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) &
+            &   - avgdens(ncell-1) / ((dp1(ncell) + dp1(ncell-1)) * (dp1(ncell-1) + dp1(ncell-2))) &
+            &   + avgdens(ncell) / ((dp1(ncell) + dp1(ncell-1)) * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) )
+
+       ! Check is approxs have same sign
+       if (temps_dp(1) * temps_dp(2) .gt. 0) then
+          temps_dp(1) = sign(min(C * abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1))
+       else
+          temps_dp(1) = 0.0_real64
+       end if
+
+       ! Set temps_dp(2) to grid spacing for correction
+       temps_dp(2) = (dp1(1) + dp1(2)) / 2.0_real64
+
+       corr_edgeval = avgdens(ncell) + (temps_dp(2))**2/4.0_real64 * temps_dp(1)
+
+    else ! Boundaries of interior cells
+       temps_dp(1) = 8.0_real64 * &
+            & ( avgdens(cell) / (dp1(cell) * (dp1(cell+1) + dp1(cell))) &
+            &   - edgeval / (dp1(cell) * dp1(cell+1)) &
+            &   + avgdens(cell+1) / (dp1(cell+1) * (dp1(cell+1) + dp1(cell))) )
+       temps_dp(2) = 8.0_real64 * &
+            & ( avgdens(cell-1) / (dp1(cell-1) * (dp1(cell+1) + dp1(cell) + dp1(cell-1))) &
+            &   - avgdens(cell) / (dp1(cell-1) * (dp1(cell+1) + dp1(cell))) &
+            &   + avgdens(cell+1) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+1) + dp1(cell) + dp1(cell-1))) )
+       temps_dp(3) = 8.0_real64 * &
+            & ( avgdens(cell) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+2) + 2.0_real64 * dp1(cell+1) + dp1(cell))) &
+            &   - avgdens(cell+1) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+2) + dp1(cell+1))) &
+            &   + avgdens(cell+2) / ((dp1(cell+2) + dp1(cell+1)) * (dp1(cell+2) + 2.0_real64 * dp1(cell+1) + dp1(cell))) )
+
+       ! Check if approxs have same sign
+       if ((temps_dp(1) * temps_dp(2) .gt. 0) &
+            & .and. (temps_dp(2) * temps_dp(3) .gt. 0)) then
+          temps_dp(1) = sign(min(abs(temps_dp(1)), C * abs(temps_dp(2)), C * abs(temps_dp(3))), temps_dp(1))
+       else
+          temps_dp(1) = 0.0_real64
+       end if
+
+       ! Set temps_dp(2) to grid spacing for correction
+       temps_dp(2) = (dp1(cell) + dp1(cell+1)) / 2.0_real64
+
+       corr_edgeval = (avgdens(cell) + avgdens(cell+1))/2.0_real64 + (temps_dp(2))**2/4.0_real64 * temps_dp(1)
+
+    end if
+
+  end function correct_edgeval
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  subroutine correct_parabvals(ncell, dp1, avgdens, parabvals, C, cell)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in) :: ncell ! Number of cells in the grid
+    real(real64), intent(in) :: dp1(ncell) ! Width of cells on original grid
+    real(real64), intent(in) :: avgdens(ncell) ! Average density of original cells
+    real(real64), intent(inout) :: parabvals(3) ! Original parabola values
+    real(real64), intent(in) :: C ! Scale factor for second derivative approximations
+    integer(int32), intent(in) :: cell ! Current cell we are correcting the edge value for
+    real(real64) :: corr_edgeval ! Corrected edge value
+    real(real64) :: temps_dp(4) ! Holds working real variables
+    integer(int32) :: temps_int(1)
+
+    ! The boundary cells must be handled differently than Colella08.
+    if (cell .eq. 1) then ! Leftmost cell
+       if ((parabvals(2) - avgdens(1)) * (avgdens(1) - parabvals(1)) .le. 0.0_real64) then ! At local extremum
+          temps_dp(1) = 4.0_real64 / (dp1(1)**2) * (parabvals(1) - 2.0_real64 * avgdens(1) + parabvals(2))
+          temps_dp(2) = 8.0_real64 * &
+               & (avgdens(1) / ((dp1(2) + dp1(1)) * (dp1(3) + 2.0_real64 * dp1(2) + dp1(1))) &
+               &  - avgdens(2) / ((dp1(2) + dp1(1)) * (dp1(3) + dp1(2))) &
+               &  + avgdens(3) / ((dp1(3) + dp1(2)) * (dp1(3) + 2.0_real64 * dp1(2) + dp1(1))) )
+
+          ! Check if second derivative signs match. Put D^2a_1,lim in temps_dp(2)
+          if (temps_dp(1) * temps_dp(2) .gt. 0.0_real64) then
+             temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1) )
+          else
+             temps_dp(2) = 0.0_real64
+          end if
+
+          ! Correct parabolic piece values
+          if (temps_dp(1) .ne. 0) then
+             parabvals(1) = avgdens(1) + (parabvals(1) - avgdens(1)) * temps_dp(2) / temps_dp(1)
+             parabvals(2) = avgdens(1) + (parabvals(2) - avgdens(1)) * temps_dp(2) / temps_dp(1)
+          else
+             parabvals(1) = avgdens(1)
+             parabvals(2) = avgdens(1)
+          end if
+
+       else ! Not at local extremum
+          ! Set s in temps_int(1)
+          if (avgdens(2) - avgdens(1) .gt. 0.0_real64) then
+             temps_int(1) = 1_int32
+          else
+             temps_int(1) = -1_int32
+          end if
+
+          temps_dp(1) = parabvals(1) - avgdens(1) ! alpha_{1,-}
+          temps_dp(2) = parabvals(2) - avgdens(1) ! alpha_{1,+}
+
+          if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
+             temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
+             temps_dp(4) = avgdens(2) - avgdens(1) ! delta a
+             if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
+                parabvals(2) = avgdens(1) &
+                     & - 2.0_real64 * (temps_dp(4) &
+                     &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1)))
+             end if
+          end if
+
+       end if
+
+       parabvals(3) = 6.0_real64 * avgdens(1) - 3.0_real64 * (parabvals(1) + parabvals(2))
+
+    else if (cell .eq. 2) then ! Second leftmost cell
+       if (((parabvals(2) - avgdens(2)) * (avgdens(2) - parabvals(1)) .le. 0.0_real64) &
+            & .or. ((avgdens(3) - avgdens(2)) * (avgdens(2) - avgdens(1)) .le. 0.0_real64)) then ! At local extremum
+          temps_dp(1) = 4.0_real64 / (dp1(2)**2) * (parabvals(1) - 2.0_real64 * avgdens(2) + parabvals(2))
+          temps_dp(2) = 8.0_real64 * &
+               & (avgdens(1) / ((dp1(2) + dp1(1)) * (dp1(3) + 2.0_real64 * dp1(2) + dp1(1))) &
+               &  - avgdens(2) / ((dp1(2) + dp1(1)) * (dp1(3) + dp1(2))) &
+               &  + avgdens(3) / ((dp1(3) + dp1(2)) * (dp1(3) + 2.0_real64 * dp1(2) + dp1(1))) )
+          temps_dp(3) = 8.0_real64 * &
+               & (avgdens(2) / ((dp1(3) + dp1(2)) * (dp1(4) + 2.0_real64 * dp1(3) + dp1(2))) &
+               &  - avgdens(3) / ((dp1(3) + dp1(2)) * (dp1(4) + dp1(3))) &
+               &  + avgdens(4) / ((dp1(4) + dp1(3)) * (dp1(4) + 2.0_real64 * dp1(3) + dp1(2))) )
+
+          ! Check if second derivative signs match. Put D^2a_1,lim in temps_dp(2)
+          if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
+               & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64)) then
+             temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2)), C * abs(temps_dp(3))), temps_dp(1) )
+          else
+             temps_dp(2) = 0.0_real64
+          end if
+
+          ! Correct parabolic piece values
+          if (temps_dp(1) .ne. 0) then
+             parabvals(1) = avgdens(2) + (parabvals(1) - avgdens(2)) * temps_dp(2) / temps_dp(1)
+             parabvals(2) = avgdens(2) + (parabvals(2) - avgdens(2)) * temps_dp(2) / temps_dp(1)
+          else
+             parabvals(1) = avgdens(2)
+             parabvals(2) = avgdens(2)
+          end if
+
+       else ! Not at local extremum
+          ! Set s in temps_int(1)
+          if (avgdens(3) - avgdens(1) .gt. 0.0_real64) then
+             temps_int(1) = 1_int32
+          else
+             temps_int(1) = -1_int32
+          end if
+
+          temps_dp(1) = parabvals(1) - avgdens(2) ! alpha_{2,-}
+          temps_dp(2) = parabvals(2) - avgdens(2) ! alpha_{2,+}
+
+          if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
+             temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
+             temps_dp(4) = avgdens(3) - avgdens(2) ! delta a
+             if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
+                parabvals(2) = avgdens(2) &
+                     & - 2.0_real64 * (temps_dp(4) &
+                     &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1)))
+
+             end if
+
+          else if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
+             temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
+             temps_dp(4) = avgdens(1) - avgdens(2) ! delta a
+             if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
+                parabvals(1) = avgdens(2) &
+                     & - 2.0_real64 * (temps_dp(4) &
+                     &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2)))
+
+             end if
+          end if
+       end if
+
+       parabvals(3) = 6.0_real64 * avgdens(2) - 3.0_real64 * (parabvals(1) + parabvals(2))
+
+    else if (cell .eq. ncell - 1) then ! Second rightmost cell
+       if (((parabvals(2) - avgdens(ncell-1)) * (avgdens(ncell-1) - parabvals(1)) .le. 0.0_real64) &
+            & .or. ((avgdens(ncell) - avgdens(ncell-1)) * (avgdens(ncell-1) - avgdens(ncell-2)) .le. 0.0_real64)) then ! At local extremum
+          temps_dp(1) = 4.0_real64 / (dp1(ncell-1)**2) &
+               & * (parabvals(1) - 2.0_real64 * avgdens(ncell-1) + parabvals(2))
+          temps_dp(2) = 8.0_real64 * &
+               & (avgdens(ncell-3) / ((dp1(ncell-2) + dp1(ncell-3)) &
+               &                        * (dp1(ncell-1) + 2.0_real64 * dp1(ncell-2) + dp1(ncell-3))) &
+               &  - avgdens(ncell-2) / ((dp1(ncell-2) + dp1(ncell-3)) &
+               &                          * (dp1(ncell-1) + dp1(ncell-2))) &
+               &  + avgdens(ncell-1) / ((dp1(ncell-1) + dp1(ncell-2)) &
+               &                         * (dp1(ncell-1) + 2.0_real64 * dp1(ncell-2) + dp1(ncell-3))) )
+          temps_dp(3) = 8.0_real64 * &
+               & (avgdens(ncell-2) / ((dp1(ncell-1) + dp1(ncell-2)) &
+               &                        * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) &
+               &  - avgdens(ncell-1) / ((dp1(ncell-1) + dp1(ncell-2)) &
+               &                          * (dp1(ncell) + dp1(ncell-1))) &
+               &  + avgdens(ncell) / ((dp1(ncell) + dp1(ncell-1)) &
+               &                        * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) )
+
+          ! Check if second derivative signs match. Put D^2a_n-1,lim in temps_dp(2)
+          if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
+               & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64)) then
+             temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2)), C * abs(temps_dp(3))), temps_dp(1) )
+          else
+             temps_dp(2) = 0.0_real64
+          end if
+
+          ! Correct parabolic piece values
+          if (temps_dp(1) .ne. 0) then
+             parabvals(1) = avgdens(ncell-1) + (parabvals(1) - avgdens(ncell-1)) * temps_dp(2) / temps_dp(1)
+             parabvals(2) = avgdens(ncell-1) + (parabvals(2) - avgdens(ncell-1)) * temps_dp(2) / temps_dp(1)
+          else
+             parabvals(1) = avgdens(ncell-1)
+             parabvals(2) = avgdens(ncell-1)
+          end if
+
+       else ! Not at local extremum
+          ! Set s in temps_int(1)
+          if (avgdens(ncell) - avgdens(ncell-2) .gt. 0.0_real64) then
+             temps_int(1) = 1_int32
+          else
+             temps_int(1) = -1_int32
+          end if
+
+          temps_dp(1) = parabvals(1) - avgdens(ncell-1) ! alpha_{n-1,-}
+          temps_dp(2) = parabvals(2) - avgdens(ncell-1) ! alpha_{n-1,+}
+
+          if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
+             temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
+             temps_dp(4) = avgdens(ncell) - avgdens(ncell-1) ! delta a
+             if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
+                parabvals(2) = avgdens(ncell-1) &
+                     & - 2.0_real64 * (temps_dp(4) &
+                     &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1)))
+
+             end if
+
+          else if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
+             temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
+             temps_dp(4) = avgdens(ncell-2) - avgdens(ncell-1) ! delta a
+             if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
+                parabvals(1) = avgdens(ncell-1) &
+                     & - 2.0_real64 * (temps_dp(4) &
+                     &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2)))
+
+             end if
+          end if
+       end if
+
+       parabvals(3) = 6.0_real64 * avgdens(ncell-1) - 3.0_real64 * (parabvals(1) + parabvals(2))
+
+    else if (cell .eq. ncell) then ! Rightmost cell
+       if ((parabvals(2) - avgdens(ncell)) * (avgdens(ncell) - parabvals(1)) .le. 0.0_real64) then ! At local extremum
+          temps_dp(1) = 4.0_real64 / (dp1(ncell)**2) * (parabvals(1) - 2.0_real64 * avgdens(ncell) + parabvals(2))
+          temps_dp(2) = 8.0_real64 * &
+               & (avgdens(ncell-2) / ((dp1(ncell-1) + dp1(ncell-2)) * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) &
+               &  - avgdens(ncell-1) / ((dp1(ncell-1) + dp1(ncell-2)) * (dp1(ncell) + dp1(ncell-1))) &
+               &  + avgdens(ncell) / ((dp1(ncell) + dp1(ncell-1)) * (dp1(ncell) + 2.0_real64 * dp1(ncell-1) + dp1(ncell-2))) )
+
+          ! Check if second derivative signs match. Put D^2a_n,lim in temps_dp(2)
+          if (temps_dp(1) * temps_dp(2) .gt. 0.0_real64) then
+             temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2))), temps_dp(1) )
+          else
+             temps_dp(2) = 0.0_real64
+          end if
+
+          ! Correct parabolic piece values
+          if (temps_dp(1) .ne. 0) then
+             parabvals(1) = avgdens(ncell) + (parabvals(1) - avgdens(ncell)) * temps_dp(2) / temps_dp(1)
+             parabvals(2) = avgdens(ncell) + (parabvals(2) - avgdens(ncell)) * temps_dp(2) / temps_dp(1)
+          else
+             parabvals(1) = avgdens(ncell)
+             parabvals(2) = avgdens(ncell)
+          end if
+
+       else ! Not at local extremum
+          ! Set s in temps_int(1)
+          if (avgdens(ncell) - avgdens(ncell-1) .gt. 0.0_real64) then
+             temps_int(1) = 1_int32
+          else
+             temps_int(1) = -1_int32
+          end if
+
+          temps_dp(1) = parabvals(1) - avgdens(ncell) ! alpha_{n,-}
+          temps_dp(2) = parabvals(2) - avgdens(ncell) ! alpha_{n,+}
+
+          if (abs(temps_dp(1)) .gt. 2.0_real64 * abs(temps_dp(2))) then
+             temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
+             temps_dp(4) = avgdens(ncell-1) - avgdens(ncell) ! delta a
+             if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
+                parabvals(1) = avgdens(ncell) &
+                     & - 2.0_real64 * (temps_dp(4) &
+                     &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2)))
+             end if
+          end if
+
+       end if
+
+       parabvals(3) = 6.0_real64 * avgdens(ncell) - 3.0_real64 * (parabvals(1) + parabvals(2))
+
+    else ! Interior cell
+       if (((parabvals(2) - avgdens(cell)) * (avgdens(cell) - parabvals(1)) .le. 0.0_real64) &
+            & .or. ((avgdens(cell+1) - avgdens(cell)) * (avgdens(cell) - avgdens(cell-1)) .le. 0.0_real64)) then ! At local extremum
+          temps_dp(1) = 4.0_real64 / (dp1(cell)**2) * (parabvals(1) - 2.0_real64 * avgdens(cell) + parabvals(2))
+          temps_dp(2) = 8.0_real64 * &
+               & (avgdens(cell-2) / ((dp1(cell-1) + dp1(cell-2)) * (dp1(cell) + 2.0_real64 * dp1(cell-1) + dp1(cell-2))) &
+               &  - avgdens(cell-1) / ((dp1(cell-1) + dp1(cell-2)) * (dp1(cell) + dp1(cell-1))) &
+               &  + avgdens(cell) / ((dp1(cell) + dp1(cell-1)) * (dp1(cell) + 2.0_real64 * dp1(cell-1) + dp1(cell-2))) )
+          temps_dp(3) = 8.0_real64 * &
+               & (avgdens(cell-1) / ((dp1(cell) + dp1(cell-1)) * (dp1(cell+1) + 2.0_real64 * dp1(cell) + dp1(cell-1))) &
+               &  - avgdens(cell) / ((dp1(cell) + dp1(cell-1)) * (dp1(cell+1) + dp1(cell))) &
+               &  + avgdens(cell+1) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+1) + 2.0_real64 * dp1(cell) + dp1(cell-1))) )
+          temps_dp(4) = 8.0_real64 * &
+               & (avgdens(cell) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+2) + 2.0_real64 * dp1(cell+1) + dp1(cell))) &
+               &  - avgdens(cell+1) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+2) + dp1(cell+1))) &
+               &  + avgdens(cell+2) / ((dp1(cell+2) + dp1(cell+1)) * (dp1(cell+2) + 2.0_real64 * dp1(cell+1) + dp1(cell))) )
+
+          ! Check if second derivative signs match. Put D^2a_n,lim in temps_dp(2)
+          if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
+               & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64) &
+               & .and. (temps_dp(3) * temps_dp(4) .gt. 0.0_real64)) then
+             temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2)), &
+                  &                  C * abs(temps_dp(3)), C * abs(temps_dp(4))), temps_dp(1) )
+          else
+             temps_dp(2) = 0.0_real64
+          end if
+
+          ! Correct parabolic piece values
+          if (temps_dp(1) .ne. 0) then
+             parabvals(1) = avgdens(cell) + (parabvals(1) - avgdens(cell)) * temps_dp(2) / temps_dp(1)
+             parabvals(2) = avgdens(cell) + (parabvals(2) - avgdens(cell)) * temps_dp(2) / temps_dp(1)
+          else
+             parabvals(1) = avgdens(cell)
+             parabvals(2) = avgdens(cell)
+          end if
+
+       else ! Not at local extremum
+          ! Set s in temps_int(1)
+          if (avgdens(cell+1) - avgdens(cell-1) .gt. 0.0_real64) then
+             temps_int(1) = 1_int32
+          else
+             temps_int(1) = -1_int32
+          end if
+
+          temps_dp(1) = parabvals(1) - avgdens(cell) ! alpha_{j,-}
+          temps_dp(2) = parabvals(2) - avgdens(cell) ! alpha_{j,+}
+
+          if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
+             temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
+             temps_dp(4) = avgdens(cell+1) - avgdens(cell) ! delta a
+             if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
+                parabvals(2) = avgdens(cell) &
+                     & - 2.0_real64 * (temps_dp(4) &
+                     &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1)))
+
+             end if
+
+          else if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
+             temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
+             temps_dp(4) = avgdens(cell-1) - avgdens(cell) ! delta a
+             if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
+                parabvals(1) = avgdens(cell) &
+                     & - 2.0_real64 * (temps_dp(4) &
+                     &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2)))
+
+             end if
+          end if
+       end if
+
+       parabvals(3) = 6.0_real64 * avgdens(cell) - 3.0_real64 * (parabvals(1) + parabvals(2))
+
+    end if
+
+  end subroutine correct_parabvals
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Integrates a piece of the piecewise-parabolic reconstruction
   function integrate_parab_piece(lb, rb, lbcell, dcell, parabvals) result(res)
 
@@ -740,5 +790,93 @@ contains
          & + coeffs(3)/3.0_real64 * (rb**3 - lb**3)
 
   end function integrate_parab_piece
+
+  ! Checks that a parabolic piece is monotone.
+  function parab_piece_monotone_check(ncell, parabvals, cell) result(res)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in) :: ncell
+    real(real64), intent(in) :: parabvals(3)
+    integer(int32), intent(in) :: cell
+    integer(int32) :: res
+    real(real64) :: temp_dp
+
+    temp_dp = parabvals(1) - parabvals(2) + parabvals(3)
+    if (abs(parabvals(3)) .le. 1.0e-10_real64) then
+       ! Is monotone (sufficient, not necessary).
+       res = 1_int32
+    else if ((temp_dp / (2.0_real64 * parabvals(3)) .gt. 0.0_real64) &
+         & .and. (temp_dp / (2.0_real64 * parabvals(3)) .le. 1.0_real64)) then
+       ! Is not monotone (necessary and sufficient).
+       res = 0_int32
+    end if
+
+  end function parab_piece_monotone_check
+
+  ! Checks that a parabolic piece is locally bounds-preserving.
+  function parab_piece_local_bnd_preserve_check(ncell, parabvals, avgdens, cell) result(res)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in) :: ncell
+    real(real64), intent(in) :: parabvals(3)
+    real(real64), intent(in) :: avgdens(ncell)
+    integer(int32), intent(in) :: cell
+    integer(int32) :: res
+    real(real64) :: lo_bnd,up_bnd ! Upper and lower bound for parabolic piece
+    real(real64) :: in_ext ! Inner extremum of parabolic piece, if not monotone
+    real(real64) :: min_parab, max_parab ! Minimun and maximum values of parabola in the interval
+    real(real64) :: inf_pt ! Xi coordinate of infelction point
+    integer(int32) :: have_extrema ! Flag to indicate the extrema have been calculated
+
+    have_extrema = 0
+
+    ! Check if parabolic piece has inflection point in [0, 1]
+    if (abs(parabvals(3)) .gt. 1.0e-10_real64) then ! Not linear, get inflection point
+       inf_pt = (parabvals(1) - parabvals(2) + parabvals(3)) &
+            & / parabvals(3) ! Coordinate of inflection point
+       if ((inf_pt .le. 1.0_real64) &
+            & .and. (inf_pt .ge. 0.0_real64)) then ! If inflection point in the interval,
+          ! Then get possible internal extremum, and calculate extrema
+          in_ext = parabvals(1) &
+               & + (parabvals(2) - parabvals(1) + parabvals(3)) * inf_pt &
+               & - parabvals(3) * (inf_pt)**2
+          min_parab = min(parabvals(1), parabvals(2), in_ext)
+          max_parab = max(parabvals(1), parabvals(2), in_ext)
+          have_extrema = 1_int32 ! Mark that extrema have been found
+       end if
+    end if
+
+    if (have_extrema .eq. 0) then ! Have not gotten extrema, so piece is monotone
+       min_parab = min(parabvals(1), parabvals(2))
+       max_parab = max(parabvals(1), parabvals(2))
+       have_extrema = 1_int32 ! Mark that extrema have been found
+    end if
+
+    ! Get the bounds the parabola must be between
+    if (cell .eq. 1_int32) then ! Leftmost cell
+       lo_bnd = min(avgdens(cell), avgdens(cell+1))
+       up_bnd = max(avgdens(cell), avgdens(cell+1))
+    else if (cell .eq. ncell) then ! Rightmost cell
+       lo_bnd = min(avgdens(cell-1), avgdens(cell))
+       up_bnd = max(avgdens(cell-1), avgdens(cell))
+    else ! Interior cell
+       lo_bnd = min(avgdens(cell-1), avgdens(cell), avgdens(cell+1))
+       up_bnd = max(avgdens(cell-1), avgdens(cell), avgdens(cell+1))
+    end if
+
+    ! Compare max, min values
+    if ((min_parab .le. lo_bnd) .or. (max_parab .ge. up_bnd)) then
+       res = 0_int32
+    else
+       res = 1_int32
+    end if
+
+  end function parab_piece_local_bnd_preserve_check
 
 end submodule vertremap_redux
