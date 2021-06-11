@@ -99,6 +99,12 @@ contains
     edgevals = 0.0_real64
     do jj = 0, ncell
        edgevals(jj) = get_edgeval(ncell, interpord, K(:,jj), grid1, totmass, jj)
+       ! Global limiter for exponential
+!!$       if (edgevals(jj) .gt. exp(1.0_real64)) then
+!!$          edgevals(jj) = exp(1.0_real64)
+!!$       else if (edgevals(jj) .lt. 1.0_real64) then
+!!$          edgevals(jj) = 1.0_real64
+!!$       end if
     end do
 
     ! Now we figure out which edge value estimates need to be limited
@@ -142,7 +148,16 @@ contains
     do jj = 1, ncell
        parabvals(1, jj) = edgevals(jj-1) ! aj,-
        parabvals(2, jj) = edgevals(jj)   ! aj,+
+       parabvals(3, jj) = 6.0_real64 * avgdens1(jj) - 3.0_real64 * (parabvals(1, jj) + parabvals(2, jj))
+#if 1
+       ! Try old parabolic correction algorithm.
        call correct_parabvals(ncell, dp1, avgdens1, parabvals(:, jj), C, jj)
+#endif
+#if 0
+       ! Try new parabolic correction algorithm.
+       call correct_parabvals_2(ncell, avgdens1, parabvals(:, jj), jj)
+#endif
+       
     end do
 
     ! Check that each parabolic piece is monotone
@@ -765,6 +780,60 @@ contains
   end subroutine correct_parabvals
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  subroutine correct_parabvals_2(ncell, avgdens, parabvals, cell)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in) :: ncell ! Number of cells in the grid
+    real(real64), intent(in) :: avgdens(ncell) ! Average density of original cells
+    real(real64), intent(inout) :: parabvals(3) ! Original parabola values
+    integer(int32), intent(in) :: cell ! Current cell we are correcting the edge value for
+    real(real64) :: crit_pt ! Critical point for parabolic piece
+    real(real64) :: epsilon ! Adjustment number for endpoints.
+
+    ! Endpoints same value, must be constant.
+    if (abs(parabvals(1) - parabvals(2)) .le. 1.0e-12_real64) then
+       parabvals(1) = avgdens(cell)
+       parabvals(2) = avgdens(cell)
+       parabvals(3) = 0.0_real64
+    end if
+
+    if (abs(parabvals(3)) .ge. 1.0e-12_real64) then ! Is non-linear, might
+       ! not be monotone.
+       crit_pt = ((parabvals(2) - parabvals(1)) / parabvals(3) + 1) &
+            & / 2.0_real64
+       if ((crit_pt .lt. 1.0_real64) .and. (crit_pt .gt. 0.0_real64)) then
+          ! Critical point is in interval of interest.
+          if (((parabvals(3) .lt. 0) .and. (parabvals(1) .lt. parabvals(2))) &
+               & .or. ((parabvals(3) .gt. 0) .and. (parabvals(1) .gt. parabvals(2)))) then
+
+             epsilon = 2.0_real64 * parabvals(1) + parabvals(2) &
+                  & - 3.0_real64 * avgdens(cell)
+
+             parabvals(1) = parabvals(1) - (1.0_real64 / 3.0_real64) * epsilon
+             parabvals(2) = parabvals(2) - (1.0_real64 / 3.0_real64) * epsilon
+             
+          else if (((parabvals(3) .gt. 0) .and. (parabvals(1) .lt. parabvals(2))) &
+               & .or. ((parabvals(3) .lt. 0) .and. (parabvals(1) .gt. parabvals(2)))) then
+
+             epsilon = 2.0_real64 * parabvals(2) + parabvals(1) &
+                  & - 3.0_real64 * avgdens(cell)
+
+             parabvals(1) = parabvals(1) - (1.0_real64 / 3.0_real64) * epsilon
+             parabvals(2) = parabvals(2) - (1.0_real64 / 3.0_real64) * epsilon
+             
+          end if
+
+          parabvals(3) = 6.0_real64 * avgdens(cell) &
+               & - 3.0_real64 * (parabvals(1) + parabvals(2))
+       end if
+    end if
+
+  end subroutine correct_parabvals_2
+  
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Integrates a piece of the piecewise-parabolic reconstruction
   function integrate_parab_piece(lb, rb, lbcell, dcell, parabvals) result(res)
 
@@ -791,6 +860,7 @@ contains
 
   end function integrate_parab_piece
 
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Checks that a parabolic piece is monotone.
   function parab_piece_monotone_check(ncell, parabvals, cell) result(res)
 
@@ -816,6 +886,7 @@ contains
 
   end function parab_piece_monotone_check
 
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Checks that a parabolic piece is locally bounds-preserving.
   function parab_piece_local_bnd_preserve_check(ncell, parabvals, avgdens, cell) result(res)
 

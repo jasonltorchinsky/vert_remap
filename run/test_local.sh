@@ -22,7 +22,7 @@ if test -f "$exec"; then
     cd "$run_dir"
     cell_counts=(4 5 6 7 8)
     ogrid_opts=(cub rng sig sin sqr)
-    tfunc_opts=(exp sig)
+    tfunc_opts=(exp)
     alg_opts=(new)
     rngseed=42
     

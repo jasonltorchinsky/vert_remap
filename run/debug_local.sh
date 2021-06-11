@@ -19,7 +19,7 @@ if test -f "$exec"; then
     echo '-- Setting run variables...'
     cd "$run_dir"
     cell_counts=(3)
-    ogrid_opts=(sqr)
+    ogrid_opts=(cub)
     tfunc_opts=(exp)
     rngseed=10
 

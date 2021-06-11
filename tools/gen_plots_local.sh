@@ -12,8 +12,8 @@ pltmasserr=no
 
 # Set run variables
 ogrid_opts=(cub rng sig sin sqr uni)
-tfunc_opts=(exp sig stp wdg)
-alg_opts=(on off new)
+tfunc_opts=(exp)
+alg_opts=(new)
 
 for ogrid in ${ogrid_opts[@]}
 do
