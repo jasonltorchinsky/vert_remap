@@ -11,8 +11,8 @@ pltmassdiff=no
 pltmasserr=no
 
 # Set run variables
-ogrid_opts=(cub rng sig sin sqr)
-tfunc_opts=(sqr)
+ogrid_opts=(cub rng sin sqr)
+tfunc_opts=(exp nxp sig stp wdg)
 alg_opts=(ngh)
 
 for ogrid in ${ogrid_opts[@]}

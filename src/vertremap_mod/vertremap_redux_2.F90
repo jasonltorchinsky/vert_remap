@@ -31,8 +31,10 @@ contains
     ! original grid.
     integer(int32)              :: K(interpcnt,0:ncell) ! Indices for
     ! extrapolation and interpolation.
-    real(real64)                :: totmass(-2:ncell+2) ! Cumulative mass
-    ! function on original grid.
+    real(real64)                :: totmassfor(-2:ncell+2) ! Cumulative mass
+    ! function on original grid, from left to right.
+    real(real64)                :: totmassrev(-2:ncell+2) ! Cumulative mass
+    ! function on original grid, from right to left. (The negative of.)
     real(real64)                :: avgdens(-1:ncell+2) ! Average density of
     ! all cells, including ghost cells.
     real(real64)                :: edgevals(0:ncell) ! Interpolated interface
@@ -84,29 +86,50 @@ contains
     end do
 
     ! Extrapolate the total mass function to the ghost cell boundaries.
-    totmass = 0.0_real64
+    totmassfor = 0.0_real64
     do ii = 1, ncell
-       totmass(ii) = totmass(ii-1) + qdp(ii)
+       totmassfor(ii) = totmassfor(ii-1) + qdp(ii)
     end do
-    totmass(-2) = extrap_totmass(ncell, interpcnt, totmass(0:ncell), &
+    totmassfor(-2) = extrap_totmass(ncell, interpcnt, totmassfor(0:ncell), &
          & grid1, grid1(-2), K(:, 0))
-    totmass(-1) = extrap_totmass(ncell, interpcnt, totmass(0:ncell), &
+    totmassfor(-1) = extrap_totmass(ncell, interpcnt, totmassfor(0:ncell), &
          & grid1, grid1(-1), K(:, 0))
-    totmass(ncell+1) = extrap_totmass(ncell, interpcnt, totmass(0:ncell), &
+    totmassfor(ncell+1) = extrap_totmass(ncell, interpcnt, totmassfor(0:ncell), &
          & grid1, grid1(ncell+1), K(:, ncell))
-    totmass(ncell+2) = extrap_totmass(ncell, interpcnt, totmass(0:ncell), &
+    totmassfor(ncell+2) = extrap_totmass(ncell, interpcnt, totmassfor(0:ncell), &
          & grid1, grid1(ncell+2), K(:, ncell))
 
-    ! Get the cell averages
-    do ii = -1, ncell+2
-       avgdens(ii) = (totmass(ii) - totmass(ii-1)) / dp1ext(ii)
+    totmassrev = 0.0_real64
+    do ii = ncell-1, 0, -1
+       totmassrev(ii) = totmassrev(ii+1) + qdp(ii+1)
+    end do
+    totmassrev(-2) = extrap_totmass(ncell, interpcnt, totmassrev(0:ncell), &
+         & grid1, grid1(-2), K(:, 0))
+    totmassrev(-1) = extrap_totmass(ncell, interpcnt, totmassrev(0:ncell), &
+         & grid1, grid1(-1), K(:, 0))
+    totmassrev(ncell+1) = extrap_totmass(ncell, interpcnt, totmassrev(0:ncell), &
+         & grid1, grid1(ncell+1), K(:, ncell))
+    totmassrev(ncell+2) = extrap_totmass(ncell, interpcnt, totmassrev(0:ncell), &
+         & grid1, grid1(ncell+2), K(:, ncell))
+
+    ! Get the cell averages. Use reverse cumulative mass for left ghost cells,
+    ! forward for all of the rest.
+    do ii = -1, 0
+       avgdens(ii) = -(totmassrev(ii) - totmassrev(ii-1)) / dp1ext(ii)
+    end do
+    do ii = 1, ncell
+       avgdens(ii) = qdp(ii) / dp1ext(ii)
+    end do
+    do ii = ncell+1, ncell+2
+       avgdens(ii) = (totmassfor(ii) - totmassfor(ii-1)) / dp1ext(ii)
     end do
 
     ! Get the primary estimates for interface values of real ghost cells.
+    ! But first get new Ks
     edgevals = 0.0_real64
     do ii = 0, ncell
        edgevals(ii) = get_edgeval(ncell, interpcnt, K(:,ii), grid1, &
-            & totmass, ii)
+            & totmassfor, totmassrev, ii)
     end do
 
     ! Now we figure out which edge value estimates need to be limited
@@ -310,7 +333,8 @@ contains
   ! In particular, gets the derivative of a interpolated polynomial for
   ! the cumulative mass function.
 
-  function get_edgeval(ncell, interpcnt, K, grid1, totmass, cell) &
+  function get_edgeval(ncell, interpcnt, K, grid1, totmassfor, &
+       & totmassrev, cell) &
        & result(edgeval)
 
     use iso_fortran_env, only: int32, real64
@@ -324,15 +348,20 @@ contains
     ! intrpolation.
     real(real64), intent(in) :: grid1(-2:ncell+2) ! Grid points of
     ! original grid.
-    real(real64), intent(in) :: totmass(-2:ncell+2) ! Cumulative mass
-    ! function.
+    real(real64), intent(in) :: totmassfor(-2:ncell+2) ! Cumulative mass
+    ! function (forward).
+    real(real64), intent(in) :: totmassrev(-2:ncell+2) ! Cumulative mass
+    ! function (reverse).
     integer(int32), intent(in) :: cell ! Cell we are working with.
     real(real64) :: edgeval ! Approximated edge value.
+    real(real64) :: forweight ! Weight for the forward approximation.
     integer(int32) :: kk, kidx, ll, lidx ! For iteration.
-    real(real64) :: temps_dp(3) ! Working variables.
+    real(real64) :: temps_dp(1) ! Working variables.
 
     temps_dp = 0.0_real64
     edgeval = 0.0_real64
+    forweight = real(cell, real64) / real(ncell, real64)
+    forweight = grid1(cell) / grid1(ncell)
     do kk = 1, interpcnt
        kidx = K(kk)
        if (kidx .ne. cell) then
@@ -340,13 +369,15 @@ contains
           do ll = 1, interpcnt
              lidx = K(ll)
              if ((lidx .ne. cell) &
-                  & .and. (lidx .ne.kidx) ) then
+                  & .and. (lidx .ne. kidx) ) then
                 temps_dp(1) = temps_dp(1) * (grid1(cell) - grid1(lidx)) &
                      & / (grid1(kidx) - grid1(lidx))
              end if
           end do
           edgeval = edgeval &
-               & + totmass(kidx) / (grid1(kidx) - grid1(cell)) * temps_dp(1)
+               & + (forweight * totmassfor(kidx) &
+               &    - (1.0_real64 - forweight) * totmassrev(kidx)) &
+               &   / (grid1(kidx) - grid1(cell)) * temps_dp(1)
 
        else if (kidx .eq. cell) then
           temps_dp(1) = 0.0_real64
@@ -357,7 +388,10 @@ contains
                      & + (1.0_real64 / (grid1(cell) - grid1(lidx)))
              end if
           end do
-          edgeval = edgeval + totmass(kidx) * temps_dp(1)
+          edgeval = edgeval &
+               & + (forweight * totmassfor(kidx) &
+               &    - (1.0_real64 - forweight) * totmassrev(kidx)) &
+               &   * temps_dp(1)
        end if
     end do
 
