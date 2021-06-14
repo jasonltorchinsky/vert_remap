@@ -268,9 +268,6 @@ vert_remap_redux_BINARY_DIR:STATIC=/mnt/c/Users/Owner/Education and Research/Gra
 //Value Computed by CMake
 vert_remap_redux_SOURCE_DIR:STATIC=/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap
 
-//Dependencies for the target
-vertremap_mod_LIB_DEPENDS:STATIC=general;lapack;general;blas;
-
 
 ########################
 # INTERNAL cache entries

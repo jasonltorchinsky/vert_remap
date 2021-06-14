@@ -17,3 +17,11 @@ src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_mod@vertremap_redux.smo
 src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o.provides.build:
 	$(CMAKE_COMMAND) -E touch src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o.provides.build
 src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o.provides.build
+
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux_2.F90.o: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_mod.mod.stamp
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux_2.F90.o.provides.build: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_mod@vertremap_redux_2.smod.stamp
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_mod@vertremap_redux_2.smod.stamp: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux_2.F90.o
+	$(CMAKE_COMMAND) -E cmake_copy_f90_mod src/vertremap_mod/vertremap_mod@vertremap_redux_2.smod src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_mod@vertremap_redux_2.smod.stamp GNU
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux_2.F90.o.provides.build:
+	$(CMAKE_COMMAND) -E touch src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux_2.F90.o.provides.build
+src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build: src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux_2.F90.o.provides.build

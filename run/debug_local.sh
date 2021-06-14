@@ -18,10 +18,11 @@ if test -f "$exec"; then
     # Set run variables
     echo '-- Setting run variables...'
     cd "$run_dir"
-    cell_counts=(3)
+    cell_counts=(4)
     ogrid_opts=(cub)
-    tfunc_opts=(exp)
-    rngseed=10
+    tfunc_opts=(nxp)
+    alg_opts=(ngh)
+    rngseed=42
 
     for cells in ${cell_counts[@]}
     do
@@ -29,9 +30,9 @@ if test -f "$exec"; then
 	do
 	    for tfunc in ${tfunc_opts[@]}
 	    do
-		for alg in new
+		for alg in ${alg_opts[@]}
 		do
-		    gdb -tui --args $build_dir/vert_remap --verbose ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg
+		    gdb -tui --args $build_dir/vert_remap --verbose ncell $((2**$cells)) ogrid $ogrid tfunc $tfunc alg $alg seed $rngseed
 		done
 	    done
 	done

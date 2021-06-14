@@ -149,11 +149,11 @@ contains
        parabvals(1, jj) = edgevals(jj-1) ! aj,-
        parabvals(2, jj) = edgevals(jj)   ! aj,+
        parabvals(3, jj) = 6.0_real64 * avgdens1(jj) - 3.0_real64 * (parabvals(1, jj) + parabvals(2, jj))
-#if 1
+#if 0
        ! Try old parabolic correction algorithm.
        call correct_parabvals(ncell, dp1, avgdens1, parabvals(:, jj), C, jj)
 #endif
-#if 0
+#if 1
        ! Try new parabolic correction algorithm.
        call correct_parabvals_2(ncell, avgdens1, parabvals(:, jj), jj)
 #endif

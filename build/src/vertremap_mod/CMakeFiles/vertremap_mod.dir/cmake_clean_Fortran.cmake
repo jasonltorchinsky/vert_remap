@@ -7,4 +7,8 @@ FILE(REMOVE
   "vertremap_mod@vertremap_redux.smod"
   "VERTREMAP_MOD@VERTREMAP_REDUX.smod"
   "CMakeFiles/vertremap_mod.dir/vertremap_mod@vertremap_redux.smod.stamp"
+
+  "vertremap_mod@vertremap_redux_2.smod"
+  "VERTREMAP_MOD@VERTREMAP_REDUX_2.smod"
+  "CMakeFiles/vertremap_mod.dir/vertremap_mod@vertremap_redux_2.smod.stamp"
   )

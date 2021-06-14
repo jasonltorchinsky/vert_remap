@@ -99,6 +99,8 @@ program vert_remap
            alg = 11
         else if (alg_str .eq. 'new') then
            alg = 20
+        else if (alg_str .eq. 'ngh') then
+           alg = 21
         end if
      case('seed')
         call get_command_argument(ii + 1, arg)
@@ -257,7 +259,7 @@ contains
 
     select case(trim(adjustl(tfunc)))
     case('exp')
-       y = exp(x)
+       y = exp(x) / exp(1.0_real64)
     case('stp')
        if (x .le. 0.5) then
           y = 0.0_real64
@@ -265,13 +267,17 @@ contains
           y = 1.0_real64
        end if
     case('sig')
-       y = 1.0_real64/(1.0_real64 + exp(-30.0_real64*(x-0.5_real64)))
+       y = 1.0_real64 / (1.0_real64 + exp(-10.0_real64 * x))
     case('wdg')
        if (x .le. 0.5) then
           y = 0.5_real64*x
        else if (x .gt. 0.5) then
           y = 1.5_real64*x - 0.5_real64
        end if
+    case('nxp')
+       y = exp(1.0_real64 - x) / exp(1.0_real64)
+    case('sqr')
+       y = 4.0_real64*(x-0.5_real64)**2
     end select
 
   end function Q_func

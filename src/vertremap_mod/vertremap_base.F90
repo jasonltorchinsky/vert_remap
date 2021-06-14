@@ -56,6 +56,21 @@ module vertremap_mod
      end subroutine new_remap_sbr
   end interface new_remap
 
+  public :: new_remap_2
+  interface new_remap_2
+     module subroutine new_remap_2_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
+       use iso_fortran_env, only: int32, real64
+       implicit none
+       integer(int32), intent(in)  :: ncell ! Number of cells in the grid
+       real(real64), intent(inout) :: qdp(ncell) ! Mass of each cell
+       real(real64), intent(in)    :: dp1(ncell), dp2(ncell) ! Width of cells for
+       ! original, new grids
+       integer(int32), intent(in)  :: remap_alg ! Algorithm flag to use for
+       ! remapping
+       integer(int32), intent(in)  :: verbosity ! Print debug messages (1) or not (0)
+     end subroutine new_remap_2_sbr
+  end interface new_remap_2
+
 contains
 
 
@@ -88,15 +103,21 @@ contains
     logical :: abrtf=.false.
 
     q = remap_alg
-    if ( (q.ne.-1) .and. (q.ne.0) .and. (q.ne.1) .and. (q.ne.10) .and. (q.ne.11) .and. (q .ne. 20))&
-         error stop 'Bad remap alg value. Use -1, 0, 1, 10, 11, or 20.'
-
+    if ( (q.ne.-1) .and. (q.ne.0) .and. (q.ne.1) &
+         & .and. (q.ne.10) .and. (q.ne.11) &
+         & .and. (q .ne. 20) .and. (q.ne. 21) ) then
+       error stop 'Bad remap alg value. Use -1, 0, 1, 10, 11, or 20.'
+    end if
     if (remap_alg == -1) then
        call remap1_nofilter(qdp, nx, nlev, qsize, dp1, dp2)
        return
     endif
-    if (remap_alg >= 20) then ! New remapping algorithm - Jason Torchinsky Summer 2021
+    if (remap_alg == 20) then ! New remapping algorithm - Jason Torchinsky Summer 2021
        call new_remap(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg, verbosity)
+       return
+    end if
+    if (remap_alg == 21) then ! New remapping algorithm - Jason Torchinsky Summer 2021
+       call new_remap_2(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg, verbosity)
        return
     end if
     if (remap_alg >= 1) then

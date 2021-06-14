@@ -64,7 +64,7 @@ for opt, arg in opts:
 ################################################################################
 # Experiment parameters
 
-ncellList = 2**np.arange(4,16,1)
+ncellList = 2**np.arange(4,13,1)
 
 
 if ogrid == 'sqr':
@@ -90,6 +90,10 @@ elif tfunc == 'sig':
     tfuncFunc = '$1$/$(1 + e^{-30\,(x - 0.5)})$'
 elif tfunc == 'wdg':
     tfuncFunc = '$0.5\,x$ for $x \leq 0.5$, $1.5\,x - 0.5$ for $x > 0.5$'
+elif tfunc == 'nxp':
+    tfuncFunc = '$e^{(1-x)}$'
+elif tfunc == 'sqr':
+    tfuncFunc = '$4\,(x-0.5)^2$'
 else:
     tfuncFunc  = ''
 
