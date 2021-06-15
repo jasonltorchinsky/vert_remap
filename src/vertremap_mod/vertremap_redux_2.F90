@@ -49,10 +49,18 @@ contains
     ! intersect old grid cells.
     real(real64)                :: qdp2(ncell) ! Mass in each new cell.
     real(real64)                :: temps_dp(4) ! Working real values
-    integer(int32)              :: temps_int(1)
+    integer(int32)              :: temps_int(1) ! Working integer values
+    real(real64)                :: global_bnds(2) ! Global bounds
     integer(int32)              :: ii, jj, kk, kidx ! Counters for DO loops
 
 
+    ! Get the global bounds based on the data.
+    global_bnds(1) = minval(qdp/dp1)
+    global_bnds(2) = maxval(qdp/dp1)
+
+!!$    global_bnds(1) = 0.0_real64
+!!$    global_bnds(2) = 1.0_real64
+    
     ! Get original cell widths including ghost cells.
     temps_dp(1) = minval(dp1) ! Hold smallest cell width.
     dp1ext(-1) = temps_dp(1)
@@ -85,35 +93,41 @@ contains
        K(:, ii) = [(kk, kk = ncell-(interpcnt-1), ncell)]
     end do
 
-    ! Extrapolate the total mass function to the ghost cell boundaries.
+    
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    !  Extrapolate ghost cell data
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    ! Extrapolate the forward cumulative mass function
     totmassfor = 0.0_real64
     do ii = 1, ncell
        totmassfor(ii) = totmassfor(ii-1) + qdp(ii)
     end do
-    totmassfor(-2) = extrap_totmass(ncell, interpcnt, totmassfor(0:ncell), &
-         & grid1, grid1(-2), K(:, 0))
-    totmassfor(-1) = extrap_totmass(ncell, interpcnt, totmassfor(0:ncell), &
-         & grid1, grid1(-1), K(:, 0))
-    totmassfor(ncell+1) = extrap_totmass(ncell, interpcnt, totmassfor(0:ncell), &
-         & grid1, grid1(ncell+1), K(:, ncell))
-    totmassfor(ncell+2) = extrap_totmass(ncell, interpcnt, totmassfor(0:ncell), &
-         & grid1, grid1(ncell+2), K(:, ncell))
+    totmassfor(-2) = extrap_totmass( ncell, interpcnt, totmassfor(0:ncell), &
+         & grid1, grid1(-2), K(:, 0) )
+    totmassfor(-1) = extrap_totmass( ncell, interpcnt, totmassfor(0:ncell), &
+         & grid1, grid1(-1), K(:, 0) )
+    totmassfor(ncell+1) = extrap_totmass( ncell, interpcnt, &
+         & totmassfor(0:ncell), grid1, grid1(ncell+1), K(:, ncell) )
+    totmassfor(ncell+2) = extrap_totmass( ncell, interpcnt, &
+         & totmassfor(0:ncell), grid1, grid1(ncell+2), K(:, ncell) )
 
+    ! Extrapolate the reverse mass function
     totmassrev = 0.0_real64
     do ii = ncell-1, 0, -1
        totmassrev(ii) = totmassrev(ii+1) + qdp(ii+1)
     end do
-    totmassrev(-2) = extrap_totmass(ncell, interpcnt, totmassrev(0:ncell), &
-         & grid1, grid1(-2), K(:, 0))
-    totmassrev(-1) = extrap_totmass(ncell, interpcnt, totmassrev(0:ncell), &
-         & grid1, grid1(-1), K(:, 0))
-    totmassrev(ncell+1) = extrap_totmass(ncell, interpcnt, totmassrev(0:ncell), &
-         & grid1, grid1(ncell+1), K(:, ncell))
-    totmassrev(ncell+2) = extrap_totmass(ncell, interpcnt, totmassrev(0:ncell), &
-         & grid1, grid1(ncell+2), K(:, ncell))
+    totmassrev(-2) = extrap_totmass( ncell, interpcnt, totmassrev(0:ncell), &
+         & grid1, grid1(-2), K(:, 0) )
+    totmassrev(-1) = extrap_totmass( ncell, interpcnt, totmassrev(0:ncell), &
+         & grid1, grid1(-1), K(:, 0) )
+    totmassrev(ncell+1) = extrap_totmass( ncell, interpcnt, &
+         & totmassrev(0:ncell), grid1, grid1(ncell+1), K(:, ncell) )
+    totmassrev(ncell+2) = extrap_totmass( ncell, interpcnt, &
+         & totmassrev(0:ncell), grid1, grid1(ncell+2), K(:, ncell) )
 
     ! Get the cell averages. Use reverse cumulative mass for left ghost cells,
-    ! forward for all of the rest.
+    ! forward right ghost cells, and exact values for the rest.
     do ii = -1, 0
        avgdens(ii) = -(totmassrev(ii) - totmassrev(ii-1)) / dp1ext(ii)
     end do
@@ -124,19 +138,38 @@ contains
        avgdens(ii) = (totmassfor(ii) - totmassfor(ii-1)) / dp1ext(ii)
     end do
 
-    ! Get the primary estimates for interface values of real ghost cells.
-    ! But first get new Ks
+    ! We might need to correct the average densities in case the estimates
+    ! exceed global bounds.
+    do ii = -1, ncell+2
+       if (avgdens(ii) .gt. global_bnds(2)) then
+          avgdens(ii) = global_bnds(2)
+       else if (avgdens(ii) .lt. global_bnds(1)) then
+          avgdens(ii) = global_bnds(1)
+       end if
+    end do
+
+    
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    !  Initial interface value estimates
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    ! Get the primary estimates for interface values of real cells.
     edgevals = 0.0_real64
     do ii = 0, ncell
        edgevals(ii) = get_edgeval(ncell, interpcnt, K(:,ii), grid1, &
             & totmassfor, totmassrev, ii)
     end do
 
-    ! Now we figure out which edge value estimates need to be limited
-    ! Limiter on interior
+    
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    !  Limiter phase one: Enforcing monotnicity of interface values
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    ! Determine if limiting is required.
+    ! Here, we use ghost cell data to help determine if limiting is required.
     do ii = 0, ncell
        if ((avgdens(ii+1) - edgevals(ii))*(edgevals(ii) - avgdens(ii)) &
-            & .gt. 0) then
+            & .gt. -1.0e-15_real64) then
           ! Edge value is between
           limreq(ii) = 0_int32
        else ! Edge value estimate is outside
@@ -144,82 +177,33 @@ contains
        end if
     end do
 
-    ! /Interpolating face values./
-    ! Use a modified version of the limiter from Colella08.
-    ! It's fine on the interior and we don't limit on the boundary, but
-    ! near the boundary we don't have quite enough information.
     do ii = 0, ncell
-       if (limreq(ii) .eq. 1) then ! Limiting is required, do calculations
-          edgevals(ii) = correct_edgeval(ncell, dp1ext, avgdens, &
+       if (limreq(ii) .eq. 1_int32) then
+          edgevals(ii) = correct_edgeval(ncell, dp1ext, avgdens(:), &
                & edgevals(ii), C, ii)
        end if
     end do
 
-    ! /Constructing the parabolic interpolant./
-    ! First we fill in the preliminary parabolic interpolant parameters for
-    ! each cell. In the same loop, we correct the values appropriately..
+
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    !  Limiter phase two: Enforcing local monotonicity, local boundedness on
+    !  the interior, and global bounded of the parabolid pieces.
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     do ii = 1, ncell
        parabvals(1, ii) = edgevals(ii-1) ! ai,-
        parabvals(2, ii) = edgevals(ii)   ! ai,+
-       parabvals(3, ii) = 6.0_real64 * avgdens(ii) - 3.0_real64 * (parabvals(1, ii) + parabvals(2, ii))
+       parabvals(3, ii) = 6.0_real64 * avgdens(ii) -&
+            & 3.0_real64 * (parabvals(1, ii) + parabvals(2, ii)) ! a6,j
        call correct_parabvals(ncell, dp1ext, avgdens, parabvals(:, ii), C, ii)
     end do
 
-    ! Check that each parabolic piece is monotone
-    if (verbosity .eq. 1_int32) then
-       temps_int(1) = 0_int32
-       do jj = 1, ncell
-          if (parab_piece_monotone_check(ncell, parabvals(:, jj), jj) .eq. 0_int32) then ! If not monotone, trip flag.
-             temps_int(1) = 1_int32
-             !print *, '  ~~ !WARNING! Parabolic piece is not monotone:', jj
-          end if
-       end do
 
-       if (temps_int(1) .eq. 1_int32) then
-          print *, '  ~~ !WARNING! At least one parabolic piece is not monotone.'
-       end if
-    end if
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    !  The remapping
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    ! Check that each parabolic piece is bounds-preserving
-    if (verbosity .eq. 1_int32) then
-       temps_int(1) = 0_int32
-       do jj = 1, ncell
-          if (parab_piece_local_bnd_preserve_check(ncell, parabvals(:, jj), avgdens(0:ncell), jj) .eq. 0_int32) then ! If not
-             ! bounds-preserving, trip flag.
-             temps_int(1) = 1_int32
-             !print *, '  ~~ !WARNING! Parabolic piece is not locally bounds-preserving:', jj
-          end if
-       end do
-
-       if (temps_int(1) .eq. 1_int32) then
-          print *, '  ~~ !WARNING! At least one parabolic piece is not locally bounds-preserving.'
-       end if
-    end if
-
-    ! Check that each parabolic piece is globally bounds-preserving
-    if (verbosity .eq. 1_int32) then
-       temps_int(1) = 0_int32
-       do jj = 1, ncell
-          if (parab_piece_global_bnd_preserve_check(ncell, parabvals(:, jj), jj) .eq. 0_int32) then ! If not
-             ! bounds-preserving, trip flag.
-             temps_int(1) = 1_int32
-             !print *, '  ~~ !WARNING! Parabolic piece is not globally bounds-preserving:', jj
-          end if
-       end do
-
-       if (temps_int(1) .eq. 1_int32) then
-          print *, '  ~~ !WARNING! At least one parabolic piece is not globally bounds-preserving.'
-       end if
-    end if
-
-
-    ! Now I have the piecewise parabolic reconstruction, now I have to get the mass in each of the new cells.
-    ! I want a neat formula for integrating the piecewise parabolic reeconstruction.
-    ! I have the neat formula, I just need to find which cells then new cell boundaries are in.
-    ! This will require reconstructing the new grid.
-
-    ! To get qdp on the new grid, we must first reconstruct the new grid.
+    ! Reconstruct the new grid.
     grid2(0) = 0.0_real64
     do jj = 1, ncell
        grid2(jj) = grid2(jj-1) + dp2(jj)
@@ -230,51 +214,139 @@ contains
     end do
 
 
-    ! We're going to get a list of pairs to see in what original cells the new cell centers are in.
-    cellinsecs(1, 1) = 1_int32 ! Left bound of first new cell is in first old cell
+    ! We're going to get a list of pairs to see in what original cells the
+    ! cells are in.
+    cellinsecs(1, 1) = 1_int32 ! Left bound of first new cell is in
+    ! the first old cell.
     kidx = 1_int32 ! Cell of old grid were are checking the right boundary of
     do jj = 1, ncell-1 ! Loop through all cells of new grid
        do kk = kidx, ncell ! Loop through all cell boundaries of new grid
           if (grid2(jj) .le. grid1(kk)) then ! In the kkth cell
              cellinsecs(2, jj) = kk
-             cellinsecs(1, jj+1) = kk ! Left bound of next cell is same as right boundary of current cell
+             cellinsecs(1, jj+1) = kk ! Left bound of next cell is same as
+             ! right boundary of current cell
              kidx = kk
              exit
           end if
        end do
     end do
-    cellinsecs(2, ncell) = ncell ! Right bound of last new cell in last old cell.
+    cellinsecs(2, ncell) = ncell ! Right bound of last new cell
+    ! in last old cell.
 
     ! Now we integrate the parabolic pieces to get the new masses
     do jj = 1, ncell
        temps_dp = 0.0_real64
 
-       if (cellinsecs(2, jj) .gt. cellinsecs(1, jj) + 1) then ! New cell contains at least one entire old cell
-          ! Left part of new cell is in part of an old cell
-          temps_dp(1) = integrate_parab_piece(grid2(jj-1), grid1(cellinsecs(1, jj)), &
-               & grid1(cellinsecs(1, jj)-1), dp1(cellinsecs(1, jj)), parabvals(:, cellinsecs(1, jj)))
-          ! Middle part of new cell spans at least one cell
+       if (cellinsecs(2, jj) .gt. cellinsecs(1, jj) + 1) then
+          ! New cell contains at least one entire old cell.
+
+          ! Left part of new cell is in part of an old cell.
+          temps_dp(1) = integrate_parab_piece(grid2(jj-1), &
+               & grid1(cellinsecs(1, jj)), &
+               & grid1(cellinsecs(1, jj)-1), &
+               & dp1(cellinsecs(1, jj)), parabvals(:, cellinsecs(1, jj)))
+
+          ! Middle part of new cell spans at least one cell.
           do kk = cellinsecs(1, jj) + 1, cellinsecs(2, jj) - 1
              temps_dp(2) = temps_dp(2) + qdp(kk)
           end do
+
           ! Right part of new cell is in part of an old cell
-          temps_dp(3) = integrate_parab_piece(grid1(cellinsecs(2, jj)-1), grid2(jj), &
-               & grid1(cellinsecs(2, jj)-1), dp1(cellinsecs(2, jj)), parabvals(:, cellinsecs(2, jj)))
-       else if (cellinsecs(2, jj) .eq. cellinsecs(1, jj) + 1) then ! New cell intersects two old cells
-          ! Left part of new cell is in part of an old cell
-          temps_dp(1) = integrate_parab_piece(grid2(jj-1), grid1(cellinsecs(1, jj)), &
-               & grid1(cellinsecs(1, jj)-1), dp1(cellinsecs(1, jj)), parabvals(:, cellinsecs(1, jj)))
+          temps_dp(3) = integrate_parab_piece( grid1(cellinsecs(2, jj)-1), &
+               & grid2(jj), grid1(cellinsecs(2, jj)-1), &
+               & dp1(cellinsecs(2, jj)), parabvals(:, cellinsecs(2, jj)) )
+
+       else if (cellinsecs(2, jj) .eq. cellinsecs(1, jj) + 1) then
+          ! New cell intersects two old cells.
+          ! Left part of new cell is in part of an old cell.
+          temps_dp(1) = integrate_parab_piece( grid2(jj-1), &
+               & grid1(cellinsecs(1, jj)), grid1(cellinsecs(1, jj)-1), &
+               & dp1(cellinsecs(1, jj)), parabvals(:, cellinsecs(1, jj)) )
           ! Right part of new cell is in part of an old cell
-          temps_dp(3) = integrate_parab_piece(grid1(cellinsecs(2, jj)-1), grid2(jj), &
-               & grid1(cellinsecs(2, jj)-1), dp1(cellinsecs(2, jj)), parabvals(:, cellinsecs(2, jj)))
+          temps_dp(3) = integrate_parab_piece(grid1(cellinsecs(2, jj)-1), &
+               & grid2(jj), grid1(cellinsecs(2, jj)-1), &
+               & dp1(cellinsecs(2, jj)), parabvals(:, cellinsecs(2, jj)) )
        else if (cellinsecs(2, jj) .eq. cellinsecs(1, jj)) then ! New cell in one old cell
           ! New cell is in part of an old cell
-          temps_dp(1) = integrate_parab_piece(grid2(jj-1), grid2(jj), &
-               & grid1(cellinsecs(1, jj)-1), dp1(cellinsecs(1, jj)), parabvals(:, cellinsecs(1, jj)))
+          temps_dp(1) = integrate_parab_piece( grid2(jj-1), grid2(jj), &
+               & grid1(cellinsecs(1, jj)-1), dp1(cellinsecs(1, jj)), &
+               & parabvals(:, cellinsecs(1, jj)) )
        end if
 
        qdp2(jj) = sum(temps_dp(1:3))
     end do
+
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    !  Check the numcerical solution for various properties we want
+    !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    
+    ! Local monotonicity
+    if (verbosity .eq. 1_int32) then
+       temps_int(1) = 0_int32
+       do jj = 1, ncell
+          if (parab_piece_monotone_check( ncell, parabvals(:, jj), jj ) &
+               & .eq. 0_int32) then ! If not monotone, trip flag.
+             temps_int(1) = 1_int32
+          end if
+       end do
+
+       if (temps_int(1) .eq. 1_int32) then
+          print *, '  ~~ !WARNING! At least one', &
+               & ' parabolic piece is not monotone.'
+       end if
+    end if
+
+    ! Local boundedness on the interior.
+    if (verbosity .eq. 1_int32) then
+       temps_int(1) = 0_int32
+       do jj = 1, ncell
+          if (parab_piece_local_bnd_preserve_check( &
+               & ncell, parabvals(:, jj), avgdens, jj ) .eq. 0_int32) then
+             temps_int(1) = 1_int32
+          end if
+       end do
+
+       if (temps_int(1) .eq. 1_int32) then
+          print *, '  ~~ !WARNING! At least one parabolic piece is not', &
+               & ' locally bounds-preserving.'
+       end if
+    end if
+
+    ! Global boundedness of parabolic pieces.
+    if (verbosity .eq. 1_int32) then
+       temps_int(1) = 0_int32
+       do jj = 1, ncell
+          if (parab_piece_global_bnd_preserve_check( &
+               & ncell, parabvals(:, jj), jj, global_bnds) &
+               & .eq. 0_int32) then 
+             temps_int(1) = 1_int32
+          end if
+       end do
+
+       if (temps_int(1) .eq. 1_int32) then
+          print *, '  ~~ !WARNING! At least one parabolic piece is not', &
+               & ' globally bounds-preserving.'
+       end if
+    end if
+
+    ! Global boundedness of the cell averages.
+    if (verbosity .eq. 1_int32) then
+       temps_int(1) = 0_int32
+       do jj = 1, ncell
+          if ((qdp2(jj)/dp2(jj) .gt. global_bnds(2)) &
+               & .or. (qdp2(jj)/dp2(jj) .lt. global_bnds(1))) then
+             print *, '  ~~ !WARNING! Cell average ', jj, &
+                  & ' is not globally bounds-preserving.'
+             temps_int(1) = 1_int32
+          end if
+       end do
+
+       if (temps_int(1) .eq. 1_int32) then
+          print *, '  ~~ !WARNING! At least one cell average is not', &
+               & ' globally bounds-preserving.'
+       end if
+    end if
 
     qdp = qdp2
 
@@ -318,13 +390,6 @@ contains
        res = res + temps_dp(1) * temps_dp(2)
     end do
 
-    ! Limit the value to the maximum/minimum bounds.
-    if (res .gt. 1.0_real64) then
-       res = 1.0_real64
-    else if (res .lt. 0.0_real64) then
-       res = 0.0_real64
-    end if
-
   end function extrap_totmass
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -360,7 +425,6 @@ contains
 
     temps_dp = 0.0_real64
     edgeval = 0.0_real64
-    forweight = real(cell, real64) / real(ncell, real64)
     forweight = grid1(cell) / grid1(ncell)
     do kk = 1, interpcnt
        kidx = K(kk)
@@ -394,6 +458,13 @@ contains
                &   * temps_dp(1)
        end if
     end do
+
+    ! Enforce global bounds
+    if (edgeval .gt. 1.0_real64) then
+       edgeval = 1.0_real64
+    else if (edgeval .lt. 0.0_real64) then
+       edgeval = 0.0_real64
+    end if
 
   end function get_edgeval
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -610,21 +681,25 @@ contains
     integer(int32) :: res
     real(real64) :: temp_dp
 
-    temp_dp = parabvals(1) - parabvals(2) + parabvals(3)
-    if (abs(parabvals(3)) .le. 1.0e-10_real64) then
-       ! Is monotone (sufficient, not necessary).
-       res = 1_int32
-    else if ((temp_dp / (2.0_real64 * parabvals(3)) .gt. 0.0_real64) &
-         & .and. (temp_dp / (2.0_real64 * parabvals(3)) .le. 1.0_real64)) then
-       ! Is not monotone (necessary and sufficient).
+    temp_dp = parabvals(2) - parabvals(1) + parabvals(3)
+    if ( (abs(parabvals(3)) .ge. 1.0e-10_real64) &
+         & .and. ((temp_dp / (2.0_real64 * parabvals(3)) .gt. 0.0_real64) &
+         & .and. (temp_dp / (2.0_real64 * parabvals(3)) .le. 1.0_real64)) ) then
+       ! Is not linear and critical point in [0, 1], is not monotone.
        res = 0_int32
+       print *, '  ~~ Cell: ', cell, ' is not monotone.'
+       print *, '  ~~ ', parabvals
+    else
+       ! Is linear or critical point outside of [0, 1], is monotone.
+       res = 1_int32
     end if
 
   end function parab_piece_monotone_check
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Checks that a parabolic piece is locally bounds-preserving.
-  function parab_piece_local_bnd_preserve_check(ncell, parabvals, avgdens, cell) result(res)
+  function parab_piece_local_bnd_preserve_check(ncell, parabvals, &
+       & avgdens, cell) result(res)
 
     use iso_fortran_env, only: int32, real64
 
@@ -632,29 +707,30 @@ contains
 
     integer(int32), intent(in) :: ncell
     real(real64), intent(in) :: parabvals(3)
-    real(real64), intent(in) :: avgdens(ncell)
+    real(real64), intent(in) :: avgdens(-1:ncell+2)
     integer(int32), intent(in) :: cell
     integer(int32) :: res
     real(real64) :: lo_bnd,up_bnd ! Upper and lower bound for parabolic piece
-    real(real64) :: in_ext ! Inner extremum of parabolic piece, if not monotone
     real(real64) :: min_parab, max_parab ! Minimun and maximum values of parabola in the interval
-    real(real64) :: inf_pt ! Xi coordinate of infelction point
+    real(real64) :: crit_coord ! Xi coordinate of critical pt
+    real(real64) :: crit_val ! Value of parabola at critical point
     integer(int32) :: have_extrema ! Flag to indicate the extrema have been calculated
 
     have_extrema = 0
+    crit_val = -3.14
 
     ! Check if parabolic piece has inflection point in [0, 1]
-    if (abs(parabvals(3)) .gt. 1.0e-10_real64) then ! Not linear, get inflection point
-       inf_pt = (parabvals(1) - parabvals(2) + parabvals(3)) &
-            & / parabvals(3) ! Coordinate of inflection point
-       if ((inf_pt .le. 1.0_real64) &
-            & .and. (inf_pt .ge. 0.0_real64)) then ! If inflection point in the interval,
+    if (abs(parabvals(3)) .gt. 1.0e-10_real64) then ! Not linear, get critical point
+       crit_coord = (parabvals(2) - parabvals(1) + parabvals(3)) &
+            & / (2.0_real64 * parabvals(3)) ! Coordinate of inflection point
+       if ((crit_coord .le. 1.0_real64) &
+            & .and. (crit_coord .ge. 0.0_real64)) then ! If inflection point in the interval,
           ! Then get possible internal extremum, and calculate extrema
-          in_ext = parabvals(1) &
-               & + (parabvals(2) - parabvals(1) + parabvals(3)) * inf_pt &
-               & - parabvals(3) * (inf_pt)**2
-          min_parab = min(parabvals(1), parabvals(2), in_ext)
-          max_parab = max(parabvals(1), parabvals(2), in_ext)
+          crit_val = parabvals(1) &
+               & + (parabvals(2) - parabvals(1) + parabvals(3)) * crit_coord &
+               & - parabvals(3) * (crit_coord)**2
+          min_parab = min(parabvals(1), parabvals(2), crit_val)
+          max_parab = max(parabvals(1), parabvals(2), crit_val)
           have_extrema = 1_int32 ! Mark that extrema have been found
        end if
     end if
@@ -666,19 +742,25 @@ contains
     end if
 
     ! Get the bounds the parabola must be between
-    if (cell .eq. 1_int32) then ! Leftmost cell
-       lo_bnd = min(avgdens(cell), avgdens(cell+1))
-       up_bnd = max(avgdens(cell), avgdens(cell+1))
-    else if (cell .eq. ncell) then ! Rightmost cell
-       lo_bnd = min(avgdens(cell-1), avgdens(cell))
-       up_bnd = max(avgdens(cell-1), avgdens(cell))
-    else ! Interior cell
-       lo_bnd = min(avgdens(cell-1), avgdens(cell), avgdens(cell+1))
-       up_bnd = max(avgdens(cell-1), avgdens(cell), avgdens(cell+1))
-    end if
+!!$    if (cell .eq. 1_int32) then ! Leftmost cell
+!!$       lo_bnd = min(avgdens(cell), avgdens(cell+1))
+!!$       up_bnd = max(avgdens(cell), avgdens(cell+1))
+!!$    else if (cell .eq. ncell) then ! Rightmost cell
+!!$       lo_bnd = min(avgdens(cell-1), avgdens(cell))
+!!$       up_bnd = max(avgdens(cell-1), avgdens(cell))
+!!$    else ! Interior cell
+!!$       lo_bnd = min(avgdens(cell-1), avgdens(cell), avgdens(cell+1))
+!!$       up_bnd = max(avgdens(cell-1), avgdens(cell), avgdens(cell+1))
+!!$    end if
+
+    lo_bnd = min(avgdens(cell-1), avgdens(cell), avgdens(cell+1))
+    up_bnd = max(avgdens(cell-1), avgdens(cell), avgdens(cell+1))
 
     ! Compare max, min values
-    if ((min_parab .le. lo_bnd) .or. (max_parab .ge. up_bnd)) then
+    if ((min_parab .lt. lo_bnd) .or. (max_parab .gt. up_bnd)) then
+       print *, '    ~~ Cell: ', cell, ' is not locally bounds-preserving.'
+       print *, '  ~~ Bounds: ', avgdens(cell-1:cell+1)
+       print *, '  ~~ Extrema: ', parabvals(1:2), crit_val
        res = 0_int32
     else
        res = 1_int32
@@ -688,28 +770,30 @@ contains
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Checks that a parabolic piece is globally bounds-preserving.
-  function parab_piece_global_bnd_preserve_check(ncell, parabvals, cell) result(res)
+  function parab_piece_global_bnd_preserve_check(ncell, parabvals, cell, &
+       & bnds) result(res)
 
     use iso_fortran_env, only: int32, real64
 
     implicit none
 
     integer(int32), intent(in) :: ncell
-    real(real64), intent(in) :: parabvals(3)
+    real(real64), intent(in)   :: parabvals(3)
     integer(int32), intent(in) :: cell
+    real(real64), intent(in)   :: bnds(2) ! Global bounds
     integer(int32) :: res
     real(real64) :: lo_bnd,up_bnd ! Upper and lower bound for parabolic piece
     real(real64) :: in_ext ! Inner extremum of parabolic piece, if not monotone
     real(real64) :: min_parab, max_parab ! Minimun and maximum values of parabola in the interval
-    real(real64) :: inf_pt ! Xi coordinate of infelction point
+    real(real64) :: inf_pt ! Xi coordinate of inflection point
     integer(int32) :: have_extrema ! Flag to indicate the extrema have been calculated
 
     have_extrema = 0
 
     ! Check if parabolic piece has inflection point in [0, 1]
     if (abs(parabvals(3)) .gt. 1.0e-10_real64) then ! Not linear, get inflection point
-       inf_pt = (parabvals(1) - parabvals(2) + parabvals(3)) &
-            & / parabvals(3) ! Coordinate of inflection point
+       inf_pt = (parabvals(2) - parabvals(1) + parabvals(3)) &
+            & / (2.0_real64 * parabvals(3)) ! Coordinate of inflection point
        if ((inf_pt .le. 1.0_real64) &
             & .and. (inf_pt .ge. 0.0_real64)) then ! If inflection point in the interval,
           ! Then get possible internal extremum, and calculate extrema
@@ -729,11 +813,13 @@ contains
     end if
 
     ! Get the bounds the parabola must be between
-    lo_bnd = 0.0_real64
-    up_bnd = 1.0_real64
+    lo_bnd = bnds(1)
+    up_bnd = bnds(2)
 
     ! Compare max, min values
-    if ((min_parab .le. lo_bnd) .or. (max_parab .ge. up_bnd)) then
+    if ((min_parab .lt. lo_bnd) .or. (max_parab .gt. up_bnd)) then
+       print *, '    ~~ Cell: ', cell, ' is not globally bounds-preserving.'
+       print *, '  ~~ Extrema: ', parabvals(1:2), in_ext
        res = 0_int32
     else
        res = 1_int32

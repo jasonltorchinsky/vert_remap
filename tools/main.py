@@ -19,6 +19,7 @@ from pw_error_plot import gen_pw_error_plot
 from approx_plot import gen_approx_plot
 from massdiff_plot import gen_massdiff_plot
 from masserror_plot import gen_masserror_plot
+from pw_diff_plot import gen_pw_diff_plot
 
 
 ################################################################################
@@ -32,6 +33,7 @@ outputDir = path.join("..", "output")
 opts, args = getopt.getopt(argv[1:], '', {'ogrid=', 'tfunc=', 'plterr=',
                                           'pltpwerr=', 'pltapprox=',
                                           'pltmassdiff=', 'pltmasserr=',
+                                          'pltpwdiff=',
                                           'alg='})
 
 ogrid = ''
@@ -41,6 +43,7 @@ pltpwerr = ''
 pltapprox = ''
 pltmassdiff = ''
 pltmasserr = ''
+pltpwdiff = ''
 alg = ''
 for opt, arg in opts:
     if opt == '--ogrid':
@@ -57,6 +60,8 @@ for opt, arg in opts:
         pltmassdiff = arg
     elif opt == '--pltmasserr':
         pltmasserr = arg
+    elif opt == '--pltpwdiff':
+        pltpwdiff = arg
     elif opt == '--alg':
         alg = arg
 
@@ -64,7 +69,7 @@ for opt, arg in opts:
 ################################################################################
 # Experiment parameters
 
-ncellList = 2**np.arange(4,13,1)
+ncellList = 2**np.arange(4,10,1)
 
 
 if ogrid == 'sqr':
@@ -108,3 +113,5 @@ if (pltmassdiff == 'yes'):
     gen_massdiff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)
 if (pltmasserr == 'yes'):
     gen_masserror_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)
+if (pltpwdiff == 'yes'):
+    gen_pw_diff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)

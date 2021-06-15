@@ -71,12 +71,14 @@ program vert_remap
         print *, '         rng (+-h/4), sig (sigmoid-ish), sin (sine),'
         print *, '         sqr (x^2), uni (uniform).'
         print *, '  tfunc: Test density function. Options: exp (e^x),'
-        print *, '         sig (sigmoid-ish), stp (step function),'
+        print *, '         nxp (e^(1-x)), sig (sigmoid-ish),'
+        print *, '         stp (step function), sqr (centered parabola),'
         print *, '         wdg (wedge).'
         print *, '  alg: Which algorithm to use. Options: "on" for'
         print *, '       original algorithm with limiter on everywhere,'
         print *, '       "off" for original algorithm with the limiter'
-        print *, '       off on the boundaries, "new" for new algorithm.'
+        print *, '       off on the boundaries, "new" for new algorithm'
+        print *, '       "ngh" for new algorithm with ghost cells.'
         print *, '  seed: Seed for RNG.'
         stop
      case('-v', '--verbose')
