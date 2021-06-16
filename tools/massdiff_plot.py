@@ -26,18 +26,20 @@ def gen_massdiff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     for runIdx in range(nruns):
         ncell = ncellList[runIdx]
         QNew = np.zeros(shape=(ncell))
-        QTrue = np.zeros_like(QNew)
+        QOrig = np.zeros_like(QNew)
+        dp1 = np.zeros_like(QNew)
         dp2 = np.zeros_like(QNew)
         runStr = '{0:08d}'.format(ncell)
         fileName = ogrid + '_' + tfunc + '_' + runStr + '_' + alg + '.nc'
         filePath = path.join(outputDir, fileName)
         with xr.open_dataset(filePath) as ds:
             QNew[:] = np.asarray(ds.QNew)[:]
-            QTrue[:] = np.asarray(ds.QTrue)[:]
+            QOrig[:] = np.asarray(ds.QOrig)[:]
+            dp1[:] = np.asarray(ds.dp1)[:]
             dp2[:] = np.asarray(ds.dp2)[:]
 
         # Calculate total mass error
-        trueMass = np.sum(np.multiply(QTrue, dp2))
+        trueMass = np.sum(np.multiply(QOrig, dp1))
         approxMass = np.sum(np.multiply(QNew, dp2))
         massDiffList[runIdx] = approxMass - trueMass
         
@@ -65,7 +67,7 @@ def gen_massdiff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     plt.title('Original Grid: ' + ogridFunc + '\nTest Function: ' + tfuncFunc + 
               '\nAlgorithm: ' + alg.title())
     plt.xlabel('Cell Count')
-    plt.ylabel('Mass Difference (True - Approximation)')
+    plt.ylabel('Mass Difference (Remapped - Original)')
 
     # Save the plot to file
     fileName = 'massdiff_' + ogrid + '_' + tfunc + '_' + alg + '.png'

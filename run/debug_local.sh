@@ -20,7 +20,7 @@ if test -f "$exec"; then
     cd "$run_dir"
     cell_counts=(4)
     ogrid_opts=(cub)
-    tfunc_opts=(nxp)
+    tfunc_opts=(gau)
     alg_opts=(ngh)
     rngseed=42
 

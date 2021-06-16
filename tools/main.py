@@ -99,6 +99,10 @@ elif tfunc == 'nxp':
     tfuncFunc = '$e^{(1-x)}$'
 elif tfunc == 'sqr':
     tfuncFunc = '$4\,(x-0.5)^2$'
+elif tfunc == 'osc':
+    tfuncFunc = '$sin(8\,\pi\,x)$'
+elif tfunc == 'gau':
+    tfuncFunc = '$e^{-(1/2)\,((x-0.5)/0.05)^2}$'
 else:
     tfuncFunc  = ''
 

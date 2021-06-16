@@ -71,9 +71,9 @@ program vert_remap
         print *, '         rng (+-h/4), sig (sigmoid-ish), sin (sine),'
         print *, '         sqr (x^2), uni (uniform).'
         print *, '  tfunc: Test density function. Options: exp (e^x),'
-        print *, '         nxp (e^(1-x)), sig (sigmoid-ish),'
-        print *, '         stp (step function), sqr (centered parabola),'
-        print *, '         wdg (wedge).'
+        print *, '         gau (e^(-x^2)), nxp (e^(1-x)), osc (sin(8 pi x)),'
+        print *, '         sig (sigmoid-ish), stp (step function),'
+        print *, '         sqr (centered parabola), wdg (wedge).'
         print *, '  alg: Which algorithm to use. Options: "on" for'
         print *, '       original algorithm with limiter on everywhere,'
         print *, '       "off" for original algorithm with the limiter'
@@ -258,7 +258,8 @@ contains
     real(real64), intent(in) :: x
     character(len=8)         :: tfunc
     real(real64)             :: y
-
+    real(real64)             :: pi_dp
+    
     select case(trim(adjustl(tfunc)))
     case('exp')
        y = exp(x) / exp(1.0_real64)
@@ -280,6 +281,11 @@ contains
        y = exp(1.0_real64 - x) / exp(1.0_real64)
     case('sqr')
        y = 4.0_real64*(x-0.5_real64)**2
+    case('osc')
+       pi_dp = 4.0_real64 * atan(1.0_real64)
+       y = 0.5_real64 * (1.0_real64 + sin(8.0_real64 * pi_dp * x))
+    case('gau')
+       y = exp(-0.5_real64 * ((x - 0.5_real64)/0.05_real64)**2_int32)
     end select
 
   end function Q_func

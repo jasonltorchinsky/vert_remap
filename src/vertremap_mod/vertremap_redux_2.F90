@@ -50,16 +50,28 @@ contains
     real(real64)                :: qdp2(ncell) ! Mass in each new cell.
     real(real64)                :: temps_dp(4) ! Working real values
     integer(int32)              :: temps_int(1) ! Working integer values
-    real(real64)                :: global_bnds(2) ! Global bounds
+    real(real64)                :: global_func_bnds(2) ! Global bounds for
+    ! density function.
+    real(real64)                :: global_data_bnds(2) ! Global bounds for
+    ! data.
+    real(real64)                :: global_bnds(2) ! The globals bounds we
+    ! will actually use.
     integer(int32)              :: ii, jj, kk, kidx ! Counters for DO loops
 
 
     ! Get the global bounds based on the data.
-    global_bnds(1) = minval(qdp/dp1)
-    global_bnds(2) = maxval(qdp/dp1)
+    global_data_bnds(1) = minval(qdp/dp1)
+    global_data_bnds(2) = maxval(qdp/dp1)
 
-!!$    global_bnds(1) = 0.0_real64
-!!$    global_bnds(2) = 1.0_real64
+    global_func_bnds(1) = 0.0_real64
+    global_func_bnds(2) = 1.0_real64
+
+#if 1
+    global_bnds = global_data_bnds
+#endif
+#if 0
+    global_bnds = global_func_bnds
+#endif
     
     ! Get original cell widths including ghost cells.
     temps_dp(1) = minval(dp1) ! Hold smallest cell width.
@@ -336,8 +348,8 @@ contains
        do jj = 1, ncell
           if ((qdp2(jj)/dp2(jj) .gt. global_bnds(2)) &
                & .or. (qdp2(jj)/dp2(jj) .lt. global_bnds(1))) then
-             print *, '  ~~ !WARNING! Cell average ', jj, &
-                  & ' is not globally bounds-preserving.'
+!!$             print *, '  ~~ !WARNING! Cell average ', jj, &
+!!$                  & ' is not globally bounds-preserving.'
              temps_int(1) = 1_int32
           end if
        end do
@@ -687,8 +699,8 @@ contains
          & .and. (temp_dp / (2.0_real64 * parabvals(3)) .le. 1.0_real64)) ) then
        ! Is not linear and critical point in [0, 1], is not monotone.
        res = 0_int32
-       print *, '  ~~ Cell: ', cell, ' is not monotone.'
-       print *, '  ~~ ', parabvals
+!!$       print *, '  ~~ Cell: ', cell, ' is not monotone.'
+!!$       print *, '  ~~ ', parabvals
     else
        ! Is linear or critical point outside of [0, 1], is monotone.
        res = 1_int32
@@ -758,9 +770,9 @@ contains
 
     ! Compare max, min values
     if ((min_parab .lt. lo_bnd) .or. (max_parab .gt. up_bnd)) then
-       print *, '    ~~ Cell: ', cell, ' is not locally bounds-preserving.'
-       print *, '  ~~ Bounds: ', avgdens(cell-1:cell+1)
-       print *, '  ~~ Extrema: ', parabvals(1:2), crit_val
+!!$       print *, '    ~~ Cell: ', cell, ' is not locally bounds-preserving.'
+!!$       print *, '  ~~ Bounds: ', avgdens(cell-1:cell+1)
+!!$       print *, '  ~~ Extrema: ', parabvals(1:2), crit_val
        res = 0_int32
     else
        res = 1_int32
@@ -818,8 +830,8 @@ contains
 
     ! Compare max, min values
     if ((min_parab .lt. lo_bnd) .or. (max_parab .gt. up_bnd)) then
-       print *, '    ~~ Cell: ', cell, ' is not globally bounds-preserving.'
-       print *, '  ~~ Extrema: ', parabvals(1:2), in_ext
+!!$       print *, '    ~~ Cell: ', cell, ' is not globally bounds-preserving.'
+!!$       print *, '  ~~ Extrema: ', parabvals(1:2), in_ext
        res = 0_int32
     else
        res = 1_int32
