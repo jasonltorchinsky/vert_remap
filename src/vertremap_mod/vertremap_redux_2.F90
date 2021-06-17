@@ -179,9 +179,10 @@ contains
 
     ! Determine if limiting is required.
     ! Here, we use ghost cell data to help determine if limiting is required.
+    limreq = 0_int32
     do ii = 0, ncell
        if ((avgdens(ii+1) - edgevals(ii))*(edgevals(ii) - avgdens(ii)) &
-            & .gt. -1.0e-15_real64) then
+            & .gt. 0.0_real64) then
           ! Edge value is between
           limreq(ii) = 0_int32
        else ! Edge value estimate is outside
@@ -196,7 +197,6 @@ contains
        end if
     end do
 
-
     !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     !  Limiter phase two: Enforcing local monotonicity, local boundedness on
     !  the interior, and global bounded of the parabolid pieces.
@@ -205,9 +205,14 @@ contains
     do ii = 1, ncell
        parabvals(1, ii) = edgevals(ii-1) ! ai,-
        parabvals(2, ii) = edgevals(ii)   ! ai,+
-       parabvals(3, ii) = 6.0_real64 * avgdens(ii) -&
-            & 3.0_real64 * (parabvals(1, ii) + parabvals(2, ii)) ! a6,j
+       parabvals(3, ii) = 6.0_real64 * avgdens(ii) &
+            & - 3.0_real64 * (parabvals(1, ii) + parabvals(2, ii)) ! a6,j
+#if 0
        call correct_parabvals(ncell, dp1ext, avgdens, parabvals(:, ii), C, ii)
+#endif
+#if 1
+       call correct_parabvals_2(ncell, avgdens, parabvals(:, ii), ii)
+#endif
     end do
 
 
@@ -471,12 +476,12 @@ contains
        end if
     end do
 
-    ! Enforce global bounds
-    if (edgeval .gt. 1.0_real64) then
-       edgeval = 1.0_real64
-    else if (edgeval .lt. 0.0_real64) then
-       edgeval = 0.0_real64
-    end if
+!!$    ! Enforce global bounds
+!!$    if (edgeval .gt. 1.0_real64) then
+!!$       edgeval = 1.0_real64
+!!$    else if (edgeval .lt. 0.0_real64) then
+!!$       edgeval = 0.0_real64
+!!$    end if
 
   end function get_edgeval
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -553,6 +558,12 @@ contains
     corr_edgeval = (avgdens(cell) + avgdens(cell+1))/2.0_real64 &
          & + (1.0_real64/3.0_real64) * temps_dp(1)
 
+    !~ Manual override. If edge value still outside, just set it to average.
+    if ((avgdens(cell+1) - corr_edgeval) * (corr_edgeval - avgdens(cell)) &
+         & .gt. 0.0_real64) then
+       corr_edgeval = (avgdens(cell) + avgdens(cell+1))/2.0_real64
+    end if
+
 
   end function correct_edgeval
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -574,7 +585,6 @@ contains
     ! approximations.
     integer(int32), intent(in) :: cell ! Current cell we are correcting the
     ! edge value for.
-    real(real64) :: corr_edgeval ! Corrected edge value
     real(real64) :: temps_dp(4) ! Holds working real variables
     integer(int32) :: temps_int(1)
 
@@ -653,6 +663,280 @@ contains
   end subroutine correct_parabvals
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ! New monotonicity check.
+  
+  subroutine correct_parabvals_2(ncell, avgdens, parabvals, cell)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in) :: ncell ! Number of cells in the grid
+    real(real64), intent(in) :: avgdens(-1:ncell+2) ! Average density of
+    ! original cells.
+    real(real64), intent(inout) :: parabvals(3) ! Original parabola values
+    integer(int32), intent(in) :: cell ! Current cell we are correcting the
+    ! edge value for.
+    real(real64) :: crit_pt ! Chi coordinate of critical point
+    real(real64) :: epsilon_1, epsilon_2 ! Constant we need to adjust
+    ! edge values by.
+    real(real64) :: a_max, a_min ! Bounds for edge values
+    real(real64) :: alpha_p, alpha_m ! Coefficients for constant
+    ! we adjust the edge values by.
+    integer(int32) :: is_monotone ! Integer flag for determining if
+    ! the parabolic piece is monotone.
+
+    is_monotone = 0_int32
+    
+    if (abs(parabvals(3)) .le. 0.0_real64) then ! Is linear
+       is_monotone = 1_int32
+
+    else ! Is non-linear, get critical point
+       crit_pt = (parabvals(2) - parabvals(1) + parabvals(3)) &
+            & / (2.0_real64 * parabvals(3))
+       if ((crit_pt .ge. (1.0_real64 - 0.0_real64)) &
+            .or. (crit_pt .le. (0.0_real64 + 0.0_real64))) then
+          ! Critical point outside interval (0, 1)
+          is_monotone = 1_int32
+       else if (abs(crit_pt - 0.5_real64) .lt. 0.0_real64) then
+          ! Make flat
+          parabvals(1) = avgdens(cell)
+          parabvals(2) = avgdens(cell)
+          parabvals(3) = 0.0_real64
+          is_monotone = 1_int32
+       end if
+    end if
+
+    if (is_monotone .eq. 0_int32) then ! Is not monotone, make corrections 
+       if (parabvals(3) .gt. 0.0_real64) then ! Concave down
+          epsilon_1 = avgdens(cell) &
+               & - (1.0_real64 / 3.0_real64) &
+               &    * (parabvals(2) + 2.0_real64 * parabvals(1))
+          
+          epsilon_2 = avgdens(cell) &
+               & - (1.0_real64 / 3.0_real64) &
+               &    * (2.0_real64 * parabvals(2) + parabvals(1))
+          
+          a_max = max(avgdens(cell-1), avgdens(cell+1))
+          
+          if (epsilon_1 .lt. epsilon_2) then
+             alpha_p = (a_max - parabvals(2)) / epsilon_1
+             alpha_m = (a_max - parabvals(1)) / epsilon_1
+             if (abs((alpha_p + 2.0_real64 * alpha_m) - 3.0_real64) &
+                  & .le. 0.0_real64) then ! Initial alpha guesses are good
+                continue
+             else if ((alpha_p .ge. 1.0_real64) &
+                  & .and. (alpha_m .ge. 1.0_real64)) then
+                alpha_p = 1.0_real64
+                alpha_m = 1.0_real64
+             else if ((alpha_p .lt. 1.0_real64) &
+                  & .and. (alpha_m .lt. 1.0_real64)) then
+                alpha_p = -1.0_real64
+                alpha_m = -1.0_real64 ! Set these to negative values to flag
+                ! that no choice of alpha_pm works
+             else if ((alpha_p .ge. 1.0_real64) &
+                  & .and. (alpha_m .lt. 1.0_real64)) then
+                if (alpha_p .ge. 3.0_real64 - 2.0_real64 * alpha_m) then
+                   alpha_p = 3.0_real64 - 2.0_real64 * alpha_m
+                else if (alpha_p .lt. 3.0_real64 - 2.0_real64 * alpha_m) then
+                   alpha_p = -1.0_real64
+                   alpha_m = -1.0_real64 ! Set these to negative values to flag
+                   ! that no choice of alpha_pm works
+                end if
+             else if ((alpha_p .lt. 1.0_real64) &
+                  & .and. (alpha_m .ge. 1.0_real64)) then
+                if (alpha_m .ge. 0.5_real64 * (3.0_real64 - alpha_p)) then
+                   alpha_m = 0.5_real64 * (3.0_real64 - alpha_p)
+                else if (alpha_m .lt. 0.5_real64 * (3.0_real64 - alpha_p)) then
+                   alpha_p = -1.0_real64
+                   alpha_m = -1.0_real64 ! Set these to negative values to flag
+                   ! that no choice of alpha_pm works
+                end if
+             end if
+
+             if ((alpha_p .ge. 0.0_real64) &
+                  & .and. (alpha_m .ge. 0.0_real64)) then
+                parabvals(1) = parabvals(1) + alpha_m * epsilon_1
+                parabvals(2) = parabvals(2) + alpha_p * epsilon_1
+                parabvals(3) = 6.0_real64 * avgdens(cell) &
+                     & - 3.0_real64 * (parabvals(1) + parabvals(2))
+             else
+                parabvals(1) = avgdens(cell)
+                parabvals(2) = avgdens(cell)
+                parabvals(3) = 0.0_real64
+             end if
+
+             is_monotone = 1_int32
+
+          else if (epsilon_1 .gt. epsilon_2) then
+             alpha_p = (a_max - parabvals(2)) / epsilon_2
+             alpha_m = (a_max - parabvals(1)) / epsilon_2
+             if (abs((2.0_real64 * alpha_p + alpha_m) - 3.0_real64) &
+                  & .lt. 1.0e-15_real64) then ! Initial alpha guesses are good
+                continue
+             else if ((alpha_p .ge. 1.0_real64) &
+                  & .and. (alpha_m .ge. 1.0_real64)) then
+                alpha_p = 1.0_real64
+                alpha_m = 1.0_real64
+             else if ((alpha_p .lt. 1.0_real64) &
+                  & .and. (alpha_m .lt. 1.0_real64)) then
+                alpha_p = -1.0_real64
+                alpha_m = -1.0_real64 ! Set these to negative values to flag
+                ! that no choice of alpha_pm works
+             else if ((alpha_p .ge. 1.0_real64) &
+                  & .and. (alpha_m .lt. 1.0_real64)) then
+                if (alpha_p .ge. 0.5_real64 * (3.0_real64 - alpha_m)) then
+                   alpha_p = 0.5_real64 * (3.0_real64 - alpha_m)
+                else if (alpha_p .lt. 0.5_real64 * (3.0_real64 - alpha_m)) then
+                   alpha_p = -1.0_real64
+                   alpha_m = -1.0_real64 ! Set these to negative values to flag
+                   ! that no choice of alpha_pm works
+                end if
+             else if ((alpha_p .lt. 1.0_real64) &
+                  & .and. (alpha_m .ge. 1.0_real64)) then
+                if (alpha_m .ge. 3.0_real64 - 2.0_real64 * alpha_p) then
+                   alpha_m = 3.0_real64 - 2.0_real64 * alpha_p
+                else if (alpha_m .lt. 3.0_real64 - 2.0_real64 * alpha_p) then
+                   alpha_p = -1.0_real64
+                   alpha_m = -1.0_real64 ! Set these to negative values to flag
+                   ! that no choice of alpha_pm works
+                end if
+             end if
+
+             if ((alpha_p .ge. 0.0_real64) &
+                  & .and. (alpha_m .ge. 0.0_real64)) then
+                parabvals(1) = parabvals(1) - alpha_m * epsilon_1
+                parabvals(2) = parabvals(2) - alpha_p * epsilon_1
+                parabvals(3) = 6.0_real64 * avgdens(cell) &
+                     & - 3.0_real64 * (parabvals(1) + parabvals(2))
+             else
+                parabvals(1) = avgdens(cell)
+                parabvals(2) = avgdens(cell)
+                parabvals(3) = 0.0_real64
+             end if
+
+             is_monotone = 1_int32
+             
+          end if
+          
+       else if (parabvals(3) .lt. 0.0_real64) then ! Concave up
+          epsilon_1 = (1.0_real64 / 3.0_real64) &
+               &       * (parabvals(2) + 2.0_real64 * parabvals(1)) &
+               & - avgdens(cell)
+          
+          epsilon_2 = (1.0_real64 / 3.0_real64) &
+               &       * (2.0_real64 * parabvals(2) + parabvals(1)) &
+               & - avgdens(cell)
+          
+          a_min = min(avgdens(cell-1), avgdens(cell+1))
+          
+          if (epsilon_1 .lt. epsilon_2) then
+             alpha_p = (parabvals(2) - a_min) / epsilon_1
+             alpha_m = (parabvals(1) - a_min) / epsilon_1
+             if (abs((alpha_p + 2.0_real64 * alpha_m) - 3.0_real64) &
+                  & .le. 0.0_real64) then ! Initial alpha guesses are good
+                continue
+             else if ((alpha_p .ge. 1.0_real64) &
+                  & .and. (alpha_m .ge. 1.0_real64)) then
+                alpha_p = 1.0_real64
+                alpha_m = 1.0_real64
+             else if ((alpha_p .lt. 1.0_real64) &
+                  & .and. (alpha_m .lt. 1.0_real64)) then
+                alpha_p = -1.0_real64
+                alpha_m = -1.0_real64 ! Set these to negative values to flag
+                ! that no choice of alpha_pm works
+             else if ((alpha_p .ge. 1.0_real64) &
+                  & .and. (alpha_m .lt. 1.0_real64)) then
+                if (alpha_p .ge. 3.0_real64 - 2.0_real64 * alpha_m) then
+                   alpha_p = 3.0_real64 - 2.0_real64 * alpha_m
+                else if (alpha_p .lt. 3.0_real64 - 2.0_real64 * alpha_m) then
+                   alpha_p = -1.0_real64
+                   alpha_m = -1.0_real64 ! Set these to negative values to flag
+                   ! that no choice of alpha_pm works
+                end if
+             else if ((alpha_p .lt. 1.0_real64) &
+                  & .and. (alpha_m .ge. 1.0_real64)) then
+                if (alpha_m .ge. 0.5_real64 * (3.0_real64 - alpha_p)) then
+                   alpha_m = 0.5_real64 * (3.0_real64 - alpha_p)
+                else if (alpha_m .lt. 0.5_real64 * (3.0_real64 - alpha_p)) then
+                   alpha_p = -1.0_real64
+                   alpha_m = -1.0_real64 ! Set these to negative values to flag
+                   ! that no choice of alpha_pm works
+                end if
+             end if
+
+             if ((alpha_p .ge. 0.0_real64) &
+                  & .and. (alpha_m .ge. 0.0_real64)) then
+                parabvals(1) = parabvals(1) - alpha_m * epsilon_1
+                parabvals(2) = parabvals(2) - alpha_p * epsilon_1
+                parabvals(3) = 6.0_real64 * avgdens(cell) &
+                     & - 3.0_real64 * (parabvals(1) + parabvals(2))
+             else
+                parabvals(1) = avgdens(cell)
+                parabvals(2) = avgdens(cell)
+                parabvals(3) = 0.0_real64
+             end if
+
+             is_monotone = 1_int32
+
+          else if (epsilon_1 .gt. epsilon_2) then
+             alpha_p = (parabvals(2) - a_min) / epsilon_2
+             alpha_m = (parabvals(1) - a_min) / epsilon_2
+             if (abs((2.0_real64 * alpha_p + alpha_m) - 3.0_real64) &
+                  & .lt. 1.0e-15_real64) then ! Initial alpha guesses are good
+                continue
+             else if ((alpha_p .ge. 1.0_real64) &
+                  & .and. (alpha_m .ge. 1.0_real64)) then
+                alpha_p = 1.0_real64
+                alpha_m = 1.0_real64
+             else if ((alpha_p .lt. 1.0_real64) &
+                  & .and. (alpha_m .lt. 1.0_real64)) then
+                alpha_p = -1.0_real64
+                alpha_m = -1.0_real64 ! Set these to negative values to flag
+                ! that no choice of alpha_pm works
+             else if ((alpha_p .ge. 1.0_real64) &
+                  & .and. (alpha_m .lt. 1.0_real64)) then
+                if (alpha_p .ge. 0.5_real64 * (3.0_real64 - alpha_m)) then
+                   alpha_p = 0.5_real64 * (3.0_real64 - alpha_m)
+                else if (alpha_p .lt. 0.5_real64 * (3.0_real64 - alpha_m)) then
+                   alpha_p = -1.0_real64
+                   alpha_m = -1.0_real64 ! Set these to negative values to flag
+                   ! that no choice of alpha_pm works
+                end if
+             else if ((alpha_p .lt. 1.0_real64) &
+                  & .and. (alpha_m .ge. 1.0_real64)) then
+                if (alpha_m .ge. 3.0_real64 - 2.0_real64 * alpha_p) then
+                   alpha_m = 3.0_real64 - 2.0_real64 * alpha_p
+                else if (alpha_m .lt. 3.0_real64 - 2.0_real64 * alpha_p) then
+                   alpha_p = -1.0_real64
+                   alpha_m = -1.0_real64 ! Set these to negative values to flag
+                   ! that no choice of alpha_pm works
+                end if
+             end if
+
+             if ((alpha_p .ge. 0.0_real64) &
+                  & .and. (alpha_m .ge. 0.0_real64)) then
+                parabvals(1) = parabvals(1) + alpha_m * epsilon_1
+                parabvals(2) = parabvals(2) + alpha_p * epsilon_1
+                parabvals(3) = 6.0_real64 * avgdens(cell) &
+                     & - 3.0_real64 * (parabvals(1) + parabvals(2))
+             else
+                parabvals(1) = avgdens(cell)
+                parabvals(2) = avgdens(cell)
+                parabvals(3) = 0.0_real64
+             end if
+
+             is_monotone = 1_int32
+             
+          end if
+       end if
+    end if
+
+
+  end subroutine correct_parabvals_2
+
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Integrates a piece of the piecewise-parabolic reconstruction
   function integrate_parab_piece(lb, rb, lbcell, dcell, parabvals) result(res)
 
@@ -694,13 +978,13 @@ contains
     real(real64) :: temp_dp
 
     temp_dp = parabvals(2) - parabvals(1) + parabvals(3)
-    if ( (abs(parabvals(3)) .ge. 1.0e-10_real64) &
+    if ( (abs(parabvals(3)) .ne. 0.0_real64) &
          & .and. ((temp_dp / (2.0_real64 * parabvals(3)) .gt. 0.0_real64) &
          & .and. (temp_dp / (2.0_real64 * parabvals(3)) .le. 1.0_real64)) ) then
        ! Is not linear and critical point in [0, 1], is not monotone.
        res = 0_int32
-!!$       print *, '  ~~ Cell: ', cell, ' is not monotone.'
-!!$       print *, '  ~~ ', parabvals
+       print *, '  ~~ Cell: ', cell, ' is not monotone.'
+       print *, '  ~~ ', parabvals
     else
        ! Is linear or critical point outside of [0, 1], is monotone.
        res = 1_int32

@@ -18,10 +18,10 @@ if test -f "$exec"; then
     # Set run variables
     echo '-- Setting run variables...'
     cd "$run_dir"
-    cell_counts=(4 5 6 7 8 9 10)
+    cell_counts=(4)
     ogrid_opts=(cub)
     tfunc_opts=(gau)
-    alg_opts=(off on ngh)
+    alg_opts=(ngh)
     rngseed=42
     
     for cells in ${cell_counts[@]}

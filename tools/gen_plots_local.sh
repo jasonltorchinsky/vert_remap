@@ -14,7 +14,7 @@ pltpwdiff=yes
 # Set run variables
 ogrid_opts=(cub)
 tfunc_opts=(gau)
-alg_opts=(off on ngh)
+alg_opts=(ngh)
 
 for ogrid in ${ogrid_opts[@]}
 do
