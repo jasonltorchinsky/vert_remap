@@ -8,6 +8,7 @@ program vert_remap
 
   use iso_fortran_env, only: int32, real64
   use netcdf
+  use mass_borrow_mod
   use output_mod
   use utils_mod
   use vertremap_mod
@@ -165,6 +166,10 @@ program vert_remap
   allocate(QdpNew(ncell)) ! Remap is in-place, so we make a new array.
   QdpNew = QdpOrig
   call remap1(QdpNew, 1, ncell, 1, dp1, dp2, alg, verbose)
+  ! Perform mass borrowing
+  if (alg .ne. 10) then
+     call borrow_mass(ncell, QdpNew, dp2, maxval(QdpOrig/dp1), minval(QdpOrig/dp1))
+  end if
 
   ! Get density from mass
   allocate(QNew(ncell))
@@ -177,6 +182,8 @@ program vert_remap
   do ii = 1, ncell
      QTrue(ii) = Q_func(grid2_stg(ii), tfunc)
   end do
+
+  
 
   ! Output information
   outdirName = '../output' // repeat(' ', 41)

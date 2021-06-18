@@ -5,16 +5,16 @@ echo '-- Generating plots...'
 
 # Which plots to generate
 plterr=yes
-pltpwerr=yes
-pltapprox=yes
-pltmassdiff=no
+pltpwerr=no
+pltapprox=no
+pltmassdiff=yes
 pltmasserr=no
 pltpwdiff=yes
 
 # Set run variables
-ogrid_opts=(cub)
-tfunc_opts=(gau)
-alg_opts=(ngh)
+ogrid_opts=(cub rng sin sqr)
+tfunc_opts=(exp gau nxp osc sqr)
+alg_opts=(on off)
 
 for ogrid in ${ogrid_opts[@]}
 do

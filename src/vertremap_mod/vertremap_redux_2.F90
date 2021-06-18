@@ -805,8 +805,8 @@ contains
 
              if ((alpha_p .ge. 0.0_real64) &
                   & .and. (alpha_m .ge. 0.0_real64)) then
-                parabvals(1) = parabvals(1) - alpha_m * epsilon_1
-                parabvals(2) = parabvals(2) - alpha_p * epsilon_1
+                parabvals(1) = parabvals(1) + alpha_m * epsilon_2
+                parabvals(2) = parabvals(2) + alpha_p * epsilon_2
                 parabvals(3) = 6.0_real64 * avgdens(cell) &
                      & - 3.0_real64 * (parabvals(1) + parabvals(2))
              else
@@ -916,8 +916,8 @@ contains
 
              if ((alpha_p .ge. 0.0_real64) &
                   & .and. (alpha_m .ge. 0.0_real64)) then
-                parabvals(1) = parabvals(1) + alpha_m * epsilon_1
-                parabvals(2) = parabvals(2) + alpha_p * epsilon_1
+                parabvals(1) = parabvals(1) - alpha_m * epsilon_2
+                parabvals(2) = parabvals(2) - alpha_p * epsilon_2
                 parabvals(3) = 6.0_real64 * avgdens(cell) &
                      & - 3.0_real64 * (parabvals(1) + parabvals(2))
              else
@@ -976,19 +976,24 @@ contains
     integer(int32), intent(in) :: cell
     integer(int32) :: res
     real(real64) :: temp_dp
+    real(real64) :: crit_pt
 
-    temp_dp = parabvals(2) - parabvals(1) + parabvals(3)
-    if ( (abs(parabvals(3)) .ne. 0.0_real64) &
-         & .and. ((temp_dp / (2.0_real64 * parabvals(3)) .gt. 0.0_real64) &
-         & .and. (temp_dp / (2.0_real64 * parabvals(3)) .le. 1.0_real64)) ) then
-       ! Is not linear and critical point in [0, 1], is not monotone.
-       res = 0_int32
-       print *, '  ~~ Cell: ', cell, ' is not monotone.'
-       print *, '  ~~ ', parabvals
-    else
-       ! Is linear or critical point outside of [0, 1], is monotone.
-       res = 1_int32
-    end if
+    
+    if (parabvals(3) .ne. 0.0_real64) then ! Is non-linear
+       temp_dp = parabvals(2) - parabvals(1) + parabvals(3)
+       crit_pt = temp_dp / (2.0_real64 * parabvals(3))
+       if ( (crit_pt .gt. 1.0e-12_real64) &
+              & .and. (crit_pt .lt. 1.0_real64 - 1.0e-11_real64) ) then
+          ! Is not linear and critical point in (0, 1), is not monotone.
+          ! Give a bit of leniency for numerical instability.
+         res = 0_int32
+!!$         print *, '  ~~ Cell: ', cell, ' is not monotone.'
+!!$         print *, '  ~~ Critical point: ', crit_pt
+      else
+         ! Is linear or critical point outside of [0, 1], is monotone.
+         res = 1_int32
+      end if
+   end if
 
   end function parab_piece_monotone_check
 
