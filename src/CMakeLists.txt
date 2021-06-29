@@ -7,11 +7,13 @@ option(OnCori "OnCori" OFF)
 
 # Define path variables used throuhgout the project
 set(ENV{SOURCE_DIR} ${CMAKE_BINARY_DIR}/src)
+set(ENV{CONV_COMB_MOD_DIR} $ENV{SOURCE_DIR}/conv_comb_mod)
 set(ENV{MASS_BORROW_MOD_DIR} $ENV{SOURCE_DIR}/mass_borrow_mod)
 set(ENV{OUTPUT_MOD_DIR} $ENV{SOURCE_DIR}/output_mod)
 set(ENV{UTILS_MOD_DIR} $ENV{SOURCE_DIR}/utils_mod)
 set(ENV{VERTREMAP_MOD_DIR} $ENV{SOURCE_DIR}/vertremap_mod)
 
+add_subdirectory(conv_comb_mod)
 add_subdirectory(mass_borrow_mod)
 add_subdirectory(output_mod)
 add_subdirectory(utils_mod)
@@ -25,6 +27,7 @@ add_executable(vert_remap
 
 if(OnCori)
   target_link_libraries(vert_remap
+                        PUBLIC conv_comb_mod
                         PUBLIC mass_borrow_mod
                         PUBLIC output_mod
                         PUBLIC utils_mod
@@ -32,6 +35,7 @@ if(OnCori)
                        )
 
   target_include_directories(vert_remap
+                             PUBLIC $ENV{CONV_COMB_MOD_DIR}
                              PUBLIC $ENV{MASS_BORROW_MOD_DIR}
                              PUBLIC $ENV{OUTPUT_MOD_DIR}
                              PUBLIC $ENV{UTILS_MOD_DIR}
@@ -44,6 +48,7 @@ else()
   find_package(netCDF-Fortran REQUIRED)
   target_link_libraries(vert_remap
                         PRIVATE netCDF::netcdff
+                        PUBLIC conv_comb_mod
 			PUBLIC mass_borrow_mod
                         PUBLIC output_mod
                         PUBLIC utils_mod
@@ -51,6 +56,7 @@ else()
                        )
 
   target_include_directories(vert_remap
+                             PUBLIC $ENV{CONV_COMB_MOD_DIR}
                              PUBLIC $ENV{MASS_BORROW_MOD_DIR}
                              PUBLIC $ENV{OUTPUT_MOD_DIR}
                              PUBLIC $ENV{UTILS_MOD_DIR}

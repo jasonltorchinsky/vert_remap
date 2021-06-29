@@ -22,28 +22,25 @@ def gen_pw_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     gridDict = dict()
     diffDict = dict()
 
-    print(" ~~ Reading output from each run and calculating pointwise error...")
     for runIdx in range(nruns):
         ncell = ncellList[runIdx]
-        QNew = np.zeros(shape=(ncell))
-        QTrue = np.zeros_like(QNew)
-        grid2 = np.zeros_like(QNew)
+        Q2 = np.zeros(shape=(ncell))
+        QTrue = np.zeros_like(Q2)
+        grid2 = np.zeros_like(Q2)
         runStr = '{0:08d}'.format(ncell)
         fileName = ogrid + '_' + tfunc + '_' + runStr + '_' + alg + '.nc'
         filePath = path.join(outputDir, fileName)
         with xr.open_dataset(filePath) as ds:
-            QNew[:] = np.asarray(ds.QNew)[:]
+            Q2[:] = np.asarray(ds.Q2)[:]
             QTrue[:] = np.asarray(ds.QTrue)[:]
             grid2[:] = np.asarray(ds.grid2_stg)[:]
 
         # Calculate pointwise error
         gridDict[ncell] = grid2
-        diffDict[ncell] = np.abs(QTrue - QNew)
+        diffDict[ncell] = np.abs(QTrue - Q2)
     
     ###########################################################################
     # Plot the pointwise errors
-
-    print(" ~~ Plotting the pointwise errors...")
     
     # Make sure the output directory for plots has been created.
     plotsPath = path.join('..', 'plots')

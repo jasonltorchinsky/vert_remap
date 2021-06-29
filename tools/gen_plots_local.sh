@@ -13,8 +13,8 @@ pltpwdiff=yes
 
 # Set run variables
 ogrid_opts=(cub rng sin sqr)
-tfunc_opts=(exp gau nxp osc sqr)
-alg_opts=(on off)
+tfunc_opts=(asr exp gau nxp osc sig sqr)
+alg_opts=(llc)
 
 for ogrid in ${ogrid_opts[@]}
 do

@@ -19,32 +19,32 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     ###########################################################################
     # Calculate global error for each run.
 
-    # Normalized error (LeVeque, Appendeix A, Eqn. A.17, A.18), but only use
+    # Normalized error (LeVeque, Appendix A, Eqn. A.17, A.18), but only use
     # the number of cells.
     error1List = np.zeros(shape=nruns)
     error2List = np.zeros_like(error1List)
     errorMaxList = np.zeros_like(error1List)
 
-    print(" ~~ Reading output from each run and calculating global error...")
     for runIdx in range(nruns):
         ncell = ncellList[runIdx]
-        QNew = np.zeros(shape=(ncell))
-        QTrue = np.zeros_like(QNew)
-        dp2 = np.zeros_like(QNew)
+        Q2 = np.zeros(shape=(ncell))
+        QTrue = np.zeros_like(Q2)
+        dp2 = np.zeros_like(Q2)
         runStr = '{0:08d}'.format(ncell)
         fileName = ogrid + '_' + tfunc + '_' + runStr + '_' + alg + '.nc'
         filePath = path.join(outputDir, fileName)
         with xr.open_dataset(filePath) as ds:
-            QNew[:] = np.asarray(ds.QNew)[:]
+            Q2[:] = np.asarray(ds.Q2)[:]
             QTrue[:] = np.asarray(ds.QTrue)[:]
             dp2[:] = np.asarray(ds.dp2)[:]
 
-        # Calculate error in the three norms
-        error1List[runIdx] = np.sum(np.multiply(dp2, np.abs(QNew - QTrue)))
-    
-        error2List[runIdx] = np.sqrt(np.sum(np.multiply(dp2, np.abs(QNew - QTrue)**2)))
 
-        errorMaxList[runIdx] = np.max(np.abs(QNew - QTrue))
+        # Calculate error in the three norms
+        error1List[runIdx] = np.sum(np.multiply(dp2, np.abs(Q2 - QTrue)))
+    
+        error2List[runIdx] = np.sqrt(np.sum(np.multiply(dp2, np.abs(Q2 - QTrue)**2)))
+
+        errorMaxList[runIdx] = np.max(np.abs(Q2 - QTrue))
 
     ############################################################################
     # Calculate best-fit line for the errors
@@ -63,8 +63,6 @@ def gen_error_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     
     ###########################################################################
     # Plot the errors
-
-    print(" ~~ Plotting the errors...")
     
     # Make sure the output directory for plots has been created.
     plotsPath = path.join('..', 'plots')

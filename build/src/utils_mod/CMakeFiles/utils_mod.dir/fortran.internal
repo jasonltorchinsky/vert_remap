@@ -2,4 +2,5 @@
 provides
  utils_mod.mod
  utils_mod@netcdf_utils_mod.smod
+ utils_mod@remap_check_utils_mod.smod
  utils_mod@sys_utils_mod.smod

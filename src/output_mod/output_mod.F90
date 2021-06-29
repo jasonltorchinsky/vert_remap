@@ -49,7 +49,7 @@ contains
          & outputFile%var_ids(3), 'description', &
          & 'original grid cell centers') )
 
-    !! QOrig
+    !! Q1
     call netcdf_err_check( nf90_put_att(outputFile%id, &
          & outputFile%var_ids(4), 'description', &
          & 'densities for original grid centers') )
@@ -57,7 +57,7 @@ contains
          & outputFile%var_ids(4), 'units', &
          & 'kg m^(-1)') )
 
-    !! QdpOrig
+    !! Qdp1
     call netcdf_err_check( nf90_put_att(outputFile%id, &
          & outputFile%var_ids(5), 'description', &
          & 'masses for original grid centers') )
@@ -80,7 +80,7 @@ contains
          & outputFile%var_ids(8), 'description', &
          & 'new grid cell centers') )
 
-    !! QNew
+    !! Q2
     call netcdf_err_check( nf90_put_att(outputFile%id, &
          & outputFile%var_ids(9), 'description', &
          & 'densities for new grid centers') )
@@ -88,7 +88,7 @@ contains
          & outputFile%var_ids(9), 'units', &
          & 'kg m^(-1)') )
 
-    !! QdpNew
+    !! Qdp2
     call netcdf_err_check( nf90_put_att(outputFile%id, &
          & outputFile%var_ids(10), 'description', &
          & 'masses for original grid centers') )
@@ -113,8 +113,8 @@ contains
   ! Write output to file.
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  subroutine netcdf_write_output(nlev, ncell, grid1, dp1, grid1_stg, QOrig, &
-       & QdpOrig, grid2, dp2, grid2_stg, QNew, QdpNew, QTrue, outputFile)
+  subroutine netcdf_write_output(nlev, ncell, grid1, dp1, grid1_stg, Q1, &
+       & Qdp1, grid2, dp2, grid2_stg, Q2, Qdp2, QTrue, outputFile)
 
     use iso_fortran_env, only: int32, real64
     use netcdf
@@ -124,9 +124,9 @@ contains
 
     integer(int32), intent(in) :: nlev, ncell
     real(real64), intent(in) :: grid1(nlev), grid2(nlev)
-    real(real64), intent(in) :: dp1(ncell), grid1_stg(ncell), QOrig(ncell), &
-         & QdpOrig(ncell), dp2(ncell), grid2_stg(ncell), QNew(ncell), &
-         & QdpNew(ncell), QTrue(ncell)
+    real(real64), intent(in) :: dp1(ncell), grid1_stg(ncell), Q1(ncell), &
+         & Qdp1(ncell), dp2(ncell), grid2_stg(ncell), Q2(ncell), &
+         & Qdp2(ncell), QTrue(ncell)
     type(outfile), intent(in) :: outputFile
 
     ! Write each variable to file.
@@ -142,13 +142,13 @@ contains
     call netcdf_err_check( nf90_put_var(outputFile%id, &
          & outputFile%var_ids(3), grid1_stg) )
 
-    !! QOrig
+    !! Q1
     call netcdf_err_check( nf90_put_var(outputFile%id, &
-         & outputFile%var_ids(4), QOrig) )
+         & outputFile%var_ids(4), Q1) )
 
-    !! QdpOrig
+    !! Qdp1
     call netcdf_err_check( nf90_put_var(outputFile%id, &
-         & outputFile%var_ids(5), QdpOrig) )
+         & outputFile%var_ids(5), Qdp1) )
 
     !! grid2
     call netcdf_err_check( nf90_put_var(outputFile%id, &
@@ -162,13 +162,13 @@ contains
     call netcdf_err_check( nf90_put_var(outputFile%id, &
          & outputFile%var_ids(8), grid2_stg) )
 
-    !! QNew
+    !! Q2
     call netcdf_err_check( nf90_put_var(outputFile%id, &
-         & outputFile%var_ids(9), QNew) )
+         & outputFile%var_ids(9), Q2) )
 
-    !! QdpNew
+    !! Qdp2
     call netcdf_err_check( nf90_put_var(outputFile%id, &
-         & outputFile%var_ids(10), QdpNew) )
+         & outputFile%var_ids(10), Qdp2) )
 
     !! QTrue
     call netcdf_err_check( nf90_put_var(outputFile%id, &

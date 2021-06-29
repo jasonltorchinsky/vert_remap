@@ -8,6 +8,7 @@ program vert_remap
 
   use iso_fortran_env, only: int32, real64
   use netcdf
+  use conv_comb_mod
   use mass_borrow_mod
   use output_mod
   use utils_mod
@@ -32,8 +33,10 @@ program vert_remap
   real(real64), allocatable :: grid1_stg(:), grid2_stg(:) ! Staggered grid at
   ! cell centers 
   ! (dx/2, ..., H-dx/2)
-  real(real64), allocatable :: QOrig(:), QNew(:) ! Average density in each cell
-  real(real64), allocatable :: QdpOrig(:), QdpNew(:) ! Mass in each cell
+  real(real64), allocatable :: Q1(:), Q2(:) ! Average density in each cell
+  real(real64), allocatable :: Qdp1(:), Qdp2(:) ! Mass in each cell
+  real(real64), allocatable :: Qdp3(:), Qdp4(:) ! Extra arrays to hold mass in each cell
+  ! for extra purposes
   real(real64), allocatable :: QTrue(:) ! True density on the transformed grid
   type(outfile)             :: dataFile ! File we write the output to
   character(len=50)         :: outdirName, outfileName ! Directory, file for
@@ -71,7 +74,8 @@ program vert_remap
         print *, '  ogrid: Form of original grid. Options: cub (x^3),'
         print *, '         rng (+-h/4), sig (sigmoid-ish), sin (sine),'
         print *, '         sqr (x^2), uni (uniform).'
-        print *, '  tfunc: Test density function. Options: exp (e^x),'
+        print *, '  tfunc: Test density function. Options: ,'
+        print *, '         asr (asymmetric parabola), exp (e^x),'
         print *, '         gau (e^(-x^2)), nxp (e^(1-x)), osc (sin(8 pi x)),'
         print *, '         sig (sigmoid-ish), stp (step function),'
         print *, '         sqr (centered parabola), wdg (wedge).'
@@ -104,6 +108,12 @@ program vert_remap
            alg = 20
         else if (alg_str .eq. 'ngh') then
            alg = 21
+        else if (alg_str .eq. 'msb') then
+           alg = 31
+        else if (alg_str .eq. 'lco') then
+           alg = 32
+        else if (alg_str .eq. 'llc') then
+           alg = 33
         end if
      case('seed')
         call get_command_argument(ii + 1, arg)
@@ -154,27 +164,48 @@ program vert_remap
   end do
 
   ! Calulate density, mass of each cell.
-  allocate(QOrig(ncell))
-  allocate(QdpOrig(ncell))
+  allocate(Q1(ncell))
+  allocate(Qdp1(ncell))
 
   do ii = 1, ncell
-     QOrig(ii) = Q_func(grid1_stg(ii), tfunc)
-     QdpOrig(ii) = QOrig(ii) * dp1(ii)
+     Q1(ii) = Q_func(grid1_stg(ii), tfunc)
+     Qdp1(ii) = Q1(ii) * dp1(ii)
   end do
 
   ! Remap Qdp to grid 1
-  allocate(QdpNew(ncell)) ! Remap is in-place, so we make a new array.
-  QdpNew = QdpOrig
-  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, alg, verbose)
-  ! Perform mass borrowing
-  if (alg .ne. 10) then
-     call borrow_mass(ncell, QdpNew, dp2, maxval(QdpOrig/dp1), minval(QdpOrig/dp1))
+  allocate(Qdp2(ncell)) ! Remap is in-place, so we make a new array.
+  Qdp2 = Qdp1
+  if (alg .lt. 30) then
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, alg, verbose)
+  else if (alg .eq. 31) then ! q_alg = 11 +  mass-borrowing
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
+     call borrow_mass(ncell, Qdp2, dp2, maxval(Qdp1/dp1), minval(Qdp1/dp1))
+  else if (alg .eq. 32) then ! q_alg = 11 + linear combination
+     allocate(Qdp3(ncell))
+     Qdp3 = Qdp1
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
+     call remap1(Qdp3, 1, ncell, 1, dp1, dp2, 10, verbose)
+     call conv_comb(ncell, Qdp3, Qdp2, dp2, maxval(Qdp1/dp1), &
+          & minval(Qdp1/dp1))
+  else if (alg .eq. 33) then
+     allocate(Qdp3(ncell))
+     Qdp3 = Qdp1
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
+     call remap1(Qdp3, 1, ncell, 1, dp1, dp2, 10, verbose)
+     call conv_comb(ncell/2, Qdp3(1:ncell/2), Qdp2(1:ncell/2), dp2(1:ncell/2), &
+          & maxval(Qdp1(1:ncell/2)/dp1(1:ncell/2)), &
+          & minval(Qdp1(1:ncell/2)/dp1(1:ncell/2)))
+     call conv_comb(ncell/2, Qdp3(ncell/2+1:ncell), Qdp2(ncell/2+1:ncell), &
+          & dp2(ncell/2+1:ncell), &
+          & maxval(Qdp1(ncell/2+1:ncell)/dp1(ncell/2+1:ncell)), &
+          & minval(Qdp1(ncell/2+1:ncell)/dp1(ncell/2+1:ncell)))
   end if
+  
 
   ! Get density from mass
-  allocate(QNew(ncell))
+  allocate(Q2(ncell))
   do ii = 1, ncell
-     QNew(ii) = QdpNew(ii) / dp2(ii)
+     Q2(ii) = Qdp2(ii) / dp2(ii)
   end do
 
   ! Get true density on the transformed grid
@@ -183,7 +214,16 @@ program vert_remap
      QTrue(ii) = Q_func(grid2_stg(ii), tfunc)
   end do
 
-  
+  if (verbose .eq. 1) then
+     call check_global_bounded(ncell, Q2, maxval(Q1), minval(Q1), ii)
+     if (ii .eq. 0) then ! Global bounds violated
+        print *, ' ~~ Global bounds have been violated:'
+        print *, '    Max extrema difference: ', &
+             & max(maxval(Q2) - maxval(Q1), minval(Q1) - minval(Q2))
+     else if (ii .eq. 1) then ! Global bounds passed
+        continue
+     end if
+  end if
 
   ! Output information
   outdirName = '../output' // repeat(' ', 41)
@@ -196,17 +236,17 @@ program vert_remap
        & [ncell, nlev], &
        & 11, &
        & ['grid1' // repeat(' ', 10), 'dp1' // repeat(' ', 12), &
-       &  'grid1_stg' // repeat(' ', 6), 'QOrig' // repeat(' ', 10), &
-       &  'QdpOrig' // repeat(' ', 8), 'grid2' // repeat(' ', 10), &
+       &  'grid1_stg' // repeat(' ', 6), 'Q1' // repeat(' ', 13), &
+       &  'Qdp1' // repeat(' ', 11), 'grid2' // repeat(' ', 10), &
        &  'dp2' // repeat(' ', 12), 'grid2_stg' // repeat(' ', 6), &
-       &  'QNew' // repeat(' ', 11), 'QdpNew' // repeat(' ', 9), &
+       &  'Q2' // repeat(' ', 13), 'Qdp2' // repeat(' ', 11), &
        &  'QTrue' // repeat(' ', 10)], &
        & [(nf90_double, ii = 1, 11)], &
        & [2, (1, ii = 2, 5), 2, (1, ii = 7, 11)], &
        & outdirName, outfileName, dataFile)
   call netcdf_add_metadata(dataFile)
-  call netcdf_write_output(nlev, ncell, grid1, dp1, grid1_stg, QOrig, &
-       & QdpOrig, grid2, dp2, grid2_stg, QNew, QdpNew, QTrue, dataFile)
+  call netcdf_write_output(nlev, ncell, grid1, dp1, grid1_stg, Q1, &
+       & Qdp1, grid2, dp2, grid2_stg, Q2, Qdp2, QTrue, dataFile)
   call netcdf_close_outfile(dataFile)
 
 contains
@@ -293,6 +333,8 @@ contains
        y = 0.5_real64 * (1.0_real64 + sin(8.0_real64 * pi_dp * x))
     case('gau')
        y = exp(-0.5_real64 * ((x - 0.5_real64)/0.05_real64)**2_int32)
+    case('asr')
+       y = (16.0_real64 / 9.0_real64) * (x - 0.25_real64)**2_int32
     end select
 
   end function Q_func
