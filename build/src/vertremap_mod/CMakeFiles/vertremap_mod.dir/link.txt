@@ -1,2 +1,2 @@
-/usr/bin/ar qc libvertremap_mod.a  CMakeFiles/vertremap_mod.dir/vertremap_base.F90.o CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o CMakeFiles/vertremap_mod.dir/vertremap_redux_2.F90.o
+/usr/bin/ar qc libvertremap_mod.a  CMakeFiles/vertremap_mod.dir/vertremap_base.F90.o CMakeFiles/vertremap_mod.dir/vertremap_cs08.F90.o CMakeFiles/vertremap_mod.dir/vertremap_new.F90.o CMakeFiles/vertremap_mod.dir/vertremap_ngh.F90.o CMakeFiles/vertremap_mod.dir/vertremap_nmb.F90.o
 /usr/bin/ranlib libvertremap_mod.a

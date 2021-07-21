@@ -4,17 +4,19 @@
 echo '-- Generating plots...'
 
 # Which plots to generate
-plterr=yes
+plterr=no
 pltpwerr=no
 pltapprox=no
-pltmassdiff=yes
+pltmassdiff=no
 pltmasserr=no
-pltpwdiff=yes
+pltpwdiff=no
+plterrcomp=yes
 
 # Set run variables
-ogrid_opts=(cub rng sin sqr)
-tfunc_opts=(asr exp gau nxp osc sig sqr)
-alg_opts=(llc)
+ogrid_opts=(cub)
+tfunc_opts=(asr)
+alg_opts=(gmb)
+norm_opts=(-1 1 2)
 
 for ogrid in ${ogrid_opts[@]}
 do
@@ -22,12 +24,15 @@ do
     do
 	for alg in ${alg_opts[@]}
 	do
-	    echo "-- Run: Grid - ${ogrid}, Test Function - ${tfunc}, Algorithm - ${alg}"
-	    python main.py --ogrid=$ogrid --tfunc=$tfunc \
-		   --plterr=$plterr --pltpwerr=$pltpwerr \
-		   --pltapprox=$pltapprox --pltmassdiff=$pltmassdiff \
-		   --pltmasserr=$pltmasserr --pltpwdiff=$pltpwdiff \
-		   --alg=$alg
+            for norm in ${norm_opts[@]}
+            do
+	        echo "-- Run: Grid - ${ogrid}, Test Function - ${tfunc}, Algorithm - ${alg}"
+        	    python main.py --ogrid=$ogrid --tfunc=$tfunc \
+	               --plterr=$plterr --pltpwerr=$pltpwerr \
+		       --pltapprox=$pltapprox --pltmassdiff=$pltmassdiff \
+		       --pltmasserr=$pltmasserr --pltpwdiff=$pltpwdiff \
+		       --plterrcomp=$plterrcomp --norm=$norm  --alg=$alg
+            done
 	done
     done
 done

@@ -11,3 +11,6 @@ tools/plots/**
 
 # Ignore the build directory
 build/**
+
+# Ignore the docs directory
+docs/**

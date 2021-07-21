@@ -9,6 +9,7 @@ program vert_remap
   use iso_fortran_env, only: int32, real64
   use netcdf
   use conv_comb_mod
+  use get_insecs_mod
   use mass_borrow_mod
   use output_mod
   use utils_mod
@@ -35,8 +36,10 @@ program vert_remap
   ! (dx/2, ..., H-dx/2)
   real(real64), allocatable :: Q1(:), Q2(:) ! Average density in each cell
   real(real64), allocatable :: Qdp1(:), Qdp2(:) ! Mass in each cell
-  real(real64), allocatable :: Qdp3(:), Qdp4(:) ! Extra arrays to hold mass in each cell
+  real(real64), allocatable :: Qdp3(:) ! Extra arrays to hold mass in each cell
   ! for extra purposes
+  integer(int32), allocatable :: cell_insecs(:,:)
+  real(real64), allocatable :: ubnds(:), lbnds(:) ! Local bounds
   real(real64), allocatable :: QTrue(:) ! True density on the transformed grid
   type(outfile)             :: dataFile ! File we write the output to
   character(len=50)         :: outdirName, outfileName ! Directory, file for
@@ -104,16 +107,26 @@ program vert_remap
            alg = 10
         else if (alg_str .eq. 'off') then
            alg = 11
+        else if (alg_str .eq. 'fff') then
+           alg = 12
         else if (alg_str .eq. 'new') then
            alg = 20
         else if (alg_str .eq. 'ngh') then
            alg = 21
-        else if (alg_str .eq. 'msb') then
+        else if (alg_str .eq. 'ngf') then
+           alg = 22
+        else if (alg_str .eq. 'nmb') then
+           alg = 23
+        else if (alg_str .eq. 'cs8') then
+           alg = 24
+        else if (alg_str .eq. 'lmb') then
            alg = 31
         else if (alg_str .eq. 'lco') then
            alg = 32
         else if (alg_str .eq. 'llc') then
            alg = 33
+        else if (alg_str .eq. 'gmb') then
+           alg = 34
         end if
      case('seed')
         call get_command_argument(ii + 1, arg)
@@ -179,7 +192,32 @@ program vert_remap
      call remap1(Qdp2, 1, ncell, 1, dp1, dp2, alg, verbose)
   else if (alg .eq. 31) then ! q_alg = 11 +  mass-borrowing
      call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
-     call borrow_mass(ncell, Qdp2, dp2, maxval(Qdp1/dp1), minval(Qdp1/dp1))
+     ! Get bounds
+     allocate(cell_insecs(2,ncell))
+     call get_insecs(ncell, grid1, grid2, cell_insecs)
+     do ii = 1, ncell ! Domain of dependence is two greater than intersection
+        if (cell_insecs(1,ii) .ge. 3) then
+           cell_insecs(1,ii) = cell_insecs(1,ii) - 2
+        else if (cell_insecs(1,ii) .eq. 2) then
+           cell_insecs(1,ii) = cell_insecs(1,ii) - 1
+        end if
+
+        if (cell_insecs(2,ii) .le. ncell-2) then
+           cell_insecs(2,ii) = cell_insecs(2,ii) + 2
+        else if (cell_insecs(2,ii) .eq. ncell-1) then
+           cell_insecs(2,ii) = cell_insecs(2,ii) + 1
+        end if
+     end do
+     
+     allocate(ubnds(ncell))
+     allocate(lbnds(ncell))
+     do ii = 1, ncell
+        ubnds(ii) = maxval(Qdp1(cell_insecs(1,ii):cell_insecs(2,ii)) &
+             & / dp1(cell_insecs(1,ii):cell_insecs(2,ii)))
+        lbnds(ii) = minval(Qdp1(cell_insecs(1,ii):cell_insecs(2,ii)) &
+             & / dp1(cell_insecs(1,ii):cell_insecs(2,ii)))
+     end do
+     call borrow_mass(ncell, Qdp2, dp2, ubnds, lbnds)
   else if (alg .eq. 32) then ! q_alg = 11 + linear combination
      allocate(Qdp3(ncell))
      Qdp3 = Qdp1
@@ -199,6 +237,14 @@ program vert_remap
           & dp2(ncell/2+1:ncell), &
           & maxval(Qdp1(ncell/2+1:ncell)/dp1(ncell/2+1:ncell)), &
           & minval(Qdp1(ncell/2+1:ncell)/dp1(ncell/2+1:ncell)))
+  else if (alg .eq. 34) then
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
+     ! Get bounds
+     allocate(ubnds(ncell))
+     allocate(lbnds(ncell))
+     ubnds = maxval(Qdp1/dp1)
+     lbnds = minval(Qdp1/dp1)
+     call borrow_mass(ncell, Qdp2, dp2, ubnds, lbnds)
   end if
   
 
@@ -289,6 +335,15 @@ contains
           uni_spc = 1.0_real64 / (nlev - 1.0_real64)
           call random_number(rand_dp)
           y = x + 0.25_real64 * uni_spc * rand_dp
+       end if
+    case('sng')
+       if ((x .lt. 1.0_real64 / real(nlev - 1, real64)) &
+            & .or. (x .gt. 1.0_real64 - 1.0_real64 / real(nlev - 1, real64))) then
+          y = x
+       else
+          uni_spc = 1.0_real64 / (nlev - 1.0_real64)
+          call random_number(rand_dp)
+          y = x + 3.125e-2_real64 * uni_spc * rand_dp
        end if
     case('uni')
        y = x

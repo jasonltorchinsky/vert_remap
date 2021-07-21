@@ -3,11 +3,11 @@
 ! arguments as the original, just simplified.
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-submodule (vertremap_mod) vertremap_redux_2
+submodule (vertremap_mod) vertremap_nmb
 
 contains
 
-  module subroutine new_remap_2_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
+  module subroutine nmb_remap_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
 
     use iso_fortran_env, only: int32, real32, real64
 
@@ -44,34 +44,23 @@ contains
     real(real64)                :: parabvals(3, ncell) ! Parabola parameters
     ! for each cell.
     real(real64)                :: grid2(0:ncell) ! New grid interfaces
-    real(real64)                :: ccells2(ncell) ! New grid cell centers
-    integer(int32)              :: cellinsecs(2, ncell) ! Where new grid cells
-    ! intersect old grid cells.
+    real(real64), allocatable   :: gridc(:) ! Combined grid
+    integer(int32)              :: cLev ! Combined grid length
+    integer(int32), allocatable :: cellInsecs1C(:), cellInsecs2C(:)
+    ! Cell intersections of combined grid with grids 1 and 2.
+    real(real64), allocatable   :: cellCMass(:) ! Mass in each cell of the
+    ! combined grid
     real(real64)                :: qdp2(ncell) ! Mass in each new cell.
     real(real64)                :: temps_dp(4) ! Working real values
     integer(int32)              :: temps_int(1) ! Working integer values
-    real(real64)                :: global_func_bnds(2) ! Global bounds for
-    ! density function.
-    real(real64)                :: global_data_bnds(2) ! Global bounds for
-    ! data.
     real(real64)                :: global_bnds(2) ! The globals bounds we
     ! will actually use.
     integer(int32)              :: ii, jj, kk, kidx ! Counters for DO loops
 
 
     ! Get the global bounds based on the data.
-    global_data_bnds(1) = minval(qdp/dp1)
-    global_data_bnds(2) = maxval(qdp/dp1)
-
-    global_func_bnds(1) = 0.0_real64
-    global_func_bnds(2) = 1.0_real64
-
-#if 1
-    global_bnds = global_data_bnds
-#endif
-#if 0
-    global_bnds = global_func_bnds
-#endif
+    global_bnds(1) = minval(qdp/dp1)
+    global_bnds(2) = maxval(qdp/dp1)
     
     ! Get original cell widths including ghost cells.
     temps_dp(1) = minval(dp1) ! Hold smallest cell width.
@@ -150,16 +139,6 @@ contains
        avgdens(ii) = (totmassfor(ii) - totmassfor(ii-1)) / dp1ext(ii)
     end do
 
-    ! We might need to correct the average densities in case the estimates
-    ! exceed global bounds.
-    do ii = -1, ncell+2
-       if (avgdens(ii) .gt. global_bnds(2)) then
-          avgdens(ii) = global_bnds(2)
-       else if (avgdens(ii) .lt. global_bnds(1)) then
-          avgdens(ii) = global_bnds(1)
-       end if
-    end do
-
     
     !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     !  Initial interface value estimates
@@ -207,12 +186,8 @@ contains
        parabvals(2, ii) = edgevals(ii)   ! ai,+
        parabvals(3, ii) = 6.0_real64 * avgdens(ii) &
             & - 3.0_real64 * (parabvals(1, ii) + parabvals(2, ii)) ! a6,j
-#if 0
-       call correct_parabvals(ncell, dp1ext, avgdens, parabvals(:, ii), C, ii)
-#endif
-#if 1
-       call correct_parabvals_2(ncell, avgdens, parabvals(:, ii), ii)
-#endif
+
+       call correct_parabvals(ncell, avgdens, parabvals(:, ii), ii)
     end do
 
 
@@ -225,73 +200,27 @@ contains
     do jj = 1, ncell
        grid2(jj) = grid2(jj-1) + dp2(jj)
     end do
-    ! And cell centers
-    do jj = 1, ncell
-       ccells2(jj) = (grid2(jj) + grid2(jj-1))/2.0_real64
+
+
+    ! We're going to construct and find the cell averages in the common grid.
+    call merge_arrays(ncell+1, grid1(0:ncell), grid2(0:ncell), gridc, cLev)
+    ! Get list of which cells of grid1, grid2 the cells of gridc are in.
+    allocate(cellInsecs1C(cLev-1))
+    allocate(cellInsecs2C(cLev-1))
+    call get_insecs(ncell+1, grid1(0:ncell), cLev, gridc, cellInsecs1C)
+    call get_insecs(ncell+1, grid2(0:ncell), cLev, gridc, cellInsecs2C)
+    ! Get mass of each cell in the combined grid
+    allocate(cellCMass(cLev-1))
+    do ii = 1, cLev-1
+       cellCMass(ii) = integrate_parab_piece(gridc(ii-1), gridc(ii), &
+            & grid1(cellInsecs1C(ii)-1), dp1(cellInsecs1C(ii)), &
+            & parabvals(:,cellInsecs1C(ii)))
     end do
+    ! Perform mass borrowing among the cells of the original grid
+    call mass_borrow(cLev-1, gridc, cellCMass, global_bnds)
 
-
-    ! We're going to get a list of pairs to see in what original cells the
-    ! cells are in.
-    cellinsecs(1, 1) = 1_int32 ! Left bound of first new cell is in
-    ! the first old cell.
-    kidx = 1_int32 ! Cell of old grid were are checking the right boundary of
-    do jj = 1, ncell-1 ! Loop through all cells of new grid
-       do kk = kidx, ncell ! Loop through all cell boundaries of new grid
-          if (grid2(jj) .le. grid1(kk)) then ! In the kkth cell
-             cellinsecs(2, jj) = kk
-             cellinsecs(1, jj+1) = kk ! Left bound of next cell is same as
-             ! right boundary of current cell
-             kidx = kk
-             exit
-          end if
-       end do
-    end do
-    cellinsecs(2, ncell) = ncell ! Right bound of last new cell
-    ! in last old cell.
-
-    ! Now we integrate the parabolic pieces to get the new masses
-    do jj = 1, ncell
-       temps_dp = 0.0_real64
-
-       if (cellinsecs(2, jj) .gt. cellinsecs(1, jj) + 1) then
-          ! New cell contains at least one entire old cell.
-
-          ! Left part of new cell is in part of an old cell.
-          temps_dp(1) = integrate_parab_piece(grid2(jj-1), &
-               & grid1(cellinsecs(1, jj)), &
-               & grid1(cellinsecs(1, jj)-1), &
-               & dp1(cellinsecs(1, jj)), parabvals(:, cellinsecs(1, jj)))
-
-          ! Middle part of new cell spans at least one cell.
-          do kk = cellinsecs(1, jj) + 1, cellinsecs(2, jj) - 1
-             temps_dp(2) = temps_dp(2) + qdp(kk)
-          end do
-
-          ! Right part of new cell is in part of an old cell
-          temps_dp(3) = integrate_parab_piece( grid1(cellinsecs(2, jj)-1), &
-               & grid2(jj), grid1(cellinsecs(2, jj)-1), &
-               & dp1(cellinsecs(2, jj)), parabvals(:, cellinsecs(2, jj)) )
-
-       else if (cellinsecs(2, jj) .eq. cellinsecs(1, jj) + 1) then
-          ! New cell intersects two old cells.
-          ! Left part of new cell is in part of an old cell.
-          temps_dp(1) = integrate_parab_piece( grid2(jj-1), &
-               & grid1(cellinsecs(1, jj)), grid1(cellinsecs(1, jj)-1), &
-               & dp1(cellinsecs(1, jj)), parabvals(:, cellinsecs(1, jj)) )
-          ! Right part of new cell is in part of an old cell
-          temps_dp(3) = integrate_parab_piece(grid1(cellinsecs(2, jj)-1), &
-               & grid2(jj), grid1(cellinsecs(2, jj)-1), &
-               & dp1(cellinsecs(2, jj)), parabvals(:, cellinsecs(2, jj)) )
-       else if (cellinsecs(2, jj) .eq. cellinsecs(1, jj)) then ! New cell in one old cell
-          ! New cell is in part of an old cell
-          temps_dp(1) = integrate_parab_piece( grid2(jj-1), grid2(jj), &
-               & grid1(cellinsecs(1, jj)-1), dp1(cellinsecs(1, jj)), &
-               & parabvals(:, cellinsecs(1, jj)) )
-       end if
-
-       qdp2(jj) = sum(temps_dp(1:3))
-    end do
+    ! Construct the masses on the new grid.
+    call collect_mass(ncell, qdp2, cLev-1, cellCMass, cellInsecs2C)
 
     !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     !  Check the numcerical solution for various properties we want
@@ -367,7 +296,7 @@ contains
 
     qdp = qdp2
 
-  end subroutine new_remap_2_sbr
+  end subroutine nmb_remap_sbr
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Extrapolate the total mass function.
@@ -476,12 +405,6 @@ contains
        end if
     end do
 
-!!$    ! Enforce global bounds
-!!$    if (edgeval .gt. 1.0_real64) then
-!!$       edgeval = 1.0_real64
-!!$    else if (edgeval .lt. 0.0_real64) then
-!!$       edgeval = 0.0_real64
-!!$    end if
 
   end function get_edgeval
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -569,103 +492,9 @@ contains
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  subroutine correct_parabvals(ncell, dp1, avgdens, parabvals, C, cell)
-
-    use iso_fortran_env, only: int32, real64
-
-    implicit none
-
-    integer(int32), intent(in) :: ncell ! Number of cells in the grid
-    real(real64), intent(in) :: dp1(-1:ncell+2) ! Width of cells on original
-    ! grid.
-    real(real64), intent(in) :: avgdens(-1:ncell+2) ! Average density of
-    ! original cells.
-    real(real64), intent(inout) :: parabvals(3) ! Original parabola values
-    real(real64), intent(in) :: C ! Scale factor for second derivative
-    ! approximations.
-    integer(int32), intent(in) :: cell ! Current cell we are correcting the
-    ! edge value for.
-    real(real64) :: temps_dp(4) ! Holds working real variables
-    integer(int32) :: temps_int(1)
-
-
-    if (((parabvals(2) - avgdens(cell)) * (avgdens(cell) - parabvals(1)) .le. 0.0_real64) &
-         & .or. ((avgdens(cell+1) - avgdens(cell)) * (avgdens(cell) - avgdens(cell-1)) .le. 0.0_real64)) then ! At local extremum
-       temps_dp(1) = 4.0_real64 / (dp1(cell)**2) * (parabvals(1) - 2.0_real64 * avgdens(cell) + parabvals(2))
-       temps_dp(2) = 8.0_real64 * &
-            & (avgdens(cell-2) / ((dp1(cell-1) + dp1(cell-2)) * (dp1(cell) + 2.0_real64 * dp1(cell-1) + dp1(cell-2))) &
-            &  - avgdens(cell-1) / ((dp1(cell-1) + dp1(cell-2)) * (dp1(cell) + dp1(cell-1))) &
-            &  + avgdens(cell) / ((dp1(cell) + dp1(cell-1)) * (dp1(cell) + 2.0_real64 * dp1(cell-1) + dp1(cell-2))) )
-       temps_dp(3) = 8.0_real64 * &
-            & (avgdens(cell-1) / ((dp1(cell) + dp1(cell-1)) * (dp1(cell+1) + 2.0_real64 * dp1(cell) + dp1(cell-1))) &
-            &  - avgdens(cell) / ((dp1(cell) + dp1(cell-1)) * (dp1(cell+1) + dp1(cell))) &
-            &  + avgdens(cell+1) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+1) + 2.0_real64 * dp1(cell) + dp1(cell-1))) )
-       temps_dp(4) = 8.0_real64 * &
-            & (avgdens(cell) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+2) + 2.0_real64 * dp1(cell+1) + dp1(cell))) &
-            &  - avgdens(cell+1) / ((dp1(cell+1) + dp1(cell)) * (dp1(cell+2) + dp1(cell+1))) &
-            &  + avgdens(cell+2) / ((dp1(cell+2) + dp1(cell+1)) * (dp1(cell+2) + 2.0_real64 * dp1(cell+1) + dp1(cell))) )
-
-       ! Check if second derivative signs match. Put D^2a_n,lim in temps_dp(2)
-       if ((temps_dp(1) * temps_dp(2) .gt. 0.0_real64) &
-            & .and. (temps_dp(2) * temps_dp(3) .gt. 0.0_real64) &
-            & .and. (temps_dp(3) * temps_dp(4) .gt. 0.0_real64)) then
-          temps_dp(2) = sign( min(abs(temps_dp(1)), C * abs(temps_dp(2)), &
-               &                  C * abs(temps_dp(3)), C * abs(temps_dp(4))), temps_dp(1) )
-       else
-          temps_dp(2) = 0.0_real64
-       end if
-
-       ! Correct parabolic piece values
-       if (temps_dp(1) .ne. 0) then
-          parabvals(1) = avgdens(cell) + (parabvals(1) - avgdens(cell)) * temps_dp(2) / temps_dp(1)
-          parabvals(2) = avgdens(cell) + (parabvals(2) - avgdens(cell)) * temps_dp(2) / temps_dp(1)
-       else
-          parabvals(1) = avgdens(cell)
-          parabvals(2) = avgdens(cell)
-       end if
-
-    else ! Not at local extremum
-       ! Set s in temps_int(1)
-       if (avgdens(cell+1) - avgdens(cell-1) .gt. 0.0_real64) then
-          temps_int(1) = 1_int32
-       else
-          temps_int(1) = -1_int32
-       end if
-
-       temps_dp(1) = parabvals(1) - avgdens(cell) ! alpha_{j,-}
-       temps_dp(2) = parabvals(2) - avgdens(cell) ! alpha_{j,+}
-
-       if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-          temps_dp(3) = -1.0_real64 * temps_dp(2)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-          temps_dp(4) = avgdens(cell+1) - avgdens(cell) ! delta a
-          if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-             parabvals(2) = avgdens(cell) &
-                  & - 2.0_real64 * (temps_dp(4) &
-                  &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(1)))
-
-          end if
-
-       else if (abs(temps_dp(2)) .gt. 2.0_real64 * abs(temps_dp(1))) then
-          temps_dp(3) = -1.0_real64 * temps_dp(1)**2 / (4.0_real64 * (temps_dp(2) + temps_dp(1))) ! delta I_ext
-          temps_dp(4) = avgdens(cell-1) - avgdens(cell) ! delta a
-          if (temps_int(1) * temps_dp(3) .ge. temps_int(1) * temps_dp(4)) then
-             parabvals(1) = avgdens(cell) &
-                  & - 2.0_real64 * (temps_dp(4) &
-                  &                 + temps_int(1) * sqrt(temps_dp(4)**2 - temps_dp(4) * parabvals(2)))
-
-          end if
-       end if
-    end if
-
-    parabvals(3) = 6.0_real64 * avgdens(cell) - 3.0_real64 * (parabvals(1) + parabvals(2))
-
-
-  end subroutine correct_parabvals
-
-  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! New monotonicity check.
   
-  subroutine correct_parabvals_2(ncell, avgdens, parabvals, cell)
+  subroutine correct_parabvals(ncell, avgdens, parabvals, cell)
 
     use iso_fortran_env, only: int32, real64
 
@@ -933,8 +762,100 @@ contains
     end if
 
 
-  end subroutine correct_parabvals_2
+  end subroutine correct_parabvals
 
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  subroutine merge_arrays(nlev, in1, in2, out, outLen)
+
+    use iso_fortran_env, only: int32, real64
+    
+    implicit none
+
+    integer(int32),            intent(in)    :: nlev
+    real(real64),              intent(in)    :: in1(nlev), in2(nlev)
+    real(real64), allocatable, intent(inout) :: out(:)
+    integer(int32),            intent(out)   :: outLen
+
+    real(real64), parameter   :: tol = 3.5e-15
+    real(real64)              :: tempOut(2*nlev)
+    real(real64)              :: in1Ent, in2Ent
+    integer(int32)            :: combLen
+    integer(int32)            :: ii, in1Idx, in2Idx
+
+    tempOut = 3.4e38_real64 ! Set to dummy value
+    in1Idx = 1
+    in2Idx = 1
+    outLen = 0
+    do ii = 1, 2*nlev
+       in1Ent = in1(in1Idx)
+       in2Ent = in2(in2Idx)
+
+       if (abs(in1Ent - in2Ent) .lt. tol) then
+          ! Entries are equal, put in1Ent into outlist and increment each
+          tempOut(ii) = in1Ent
+          in1Idx = in1Idx + 1
+          in2Idx = in2Idx + 1
+
+       else if (in1Ent .lt. in2Ent) then
+          ! in1Ent smaller, put it into outlist
+          tempOut(ii) = in1Ent
+          in1Idx = in1Idx + 1
+
+       else if (in2Ent .lt. in1Ent) then
+          ! in2Ent smaller, put it into outlist
+          tempOut(ii) = in2Ent
+          in2Idx = in2Idx + 1
+       end if
+
+       outLen = outLen + 1
+
+       if ((in1Idx .gt. nlev) .or. (in2Idx .gt. nlev)) then
+          ! If we want to look outside of the lists, we are done
+          exit
+       end if
+    end do
+
+    ! Put tempOut into output array
+    allocate(out(0:outLen-1))
+    do ii = 1, outLen
+       if (tempOut(ii) .lt. 3.4e38_real64) then
+          out(ii-1) = tempOut(ii)
+       end if
+    end do
+
+  end subroutine merge_arrays
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  subroutine get_insecs(nlev, grid, nlevC, gridC, cellInsecs)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in)  :: nlev, nlevC
+    real(real64), intent(in)    :: grid(0:nlev-1)
+    real(real64), intent(in)    :: gridC(0:nlevC-1)
+    integer(int32), intent(out) :: cellInsecs(nlevC-1)
+
+    real(real64)   :: rbdy, rbdyC
+    integer(int32) :: idx
+    integer(int32) :: ii
+
+    idx = 1
+    do ii = 1, nlevC-1
+       rbdy  = grid(idx)
+       rbdyC = gridC(ii)
+       if (rbdyC .le. rbdy) then
+          ! Cell of combined grid is within current cell of grid
+          cellInsecs(ii) = idx
+       else
+          ! Cell of combined grid in in next cell of grid
+          idx = idx + 1
+          cellInsecs(ii) = idx
+       end if
+    end do
+    
+  end subroutine get_insecs
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Integrates a piece of the piecewise-parabolic reconstruction
@@ -962,6 +883,84 @@ contains
          & + coeffs(3)/3.0_real64 * (rb**3 - lb**3)
 
   end function integrate_parab_piece
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  subroutine mass_borrow(ncellC, gridC, cellCMass, bnds)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in)  :: ncellC
+    real(real64), intent(in)    :: gridC(0:ncellC)
+    real(real64), intent(inout) :: cellCMass(ncellC)
+    real(real64), intent(in)    :: bnds(2)
+
+    real(real64) :: dens, dp
+    real(real64) :: densdiff, massdiff
+    integer(int32) :: ii
+
+    ! Do the mass borrowing for each combined cell.
+    ! I believe the regular mass borrowing won't ever cross the bounds of the
+    ! original cells, since those should add up to the average.
+    do ii = 1, (ncellC-1)/2
+       ! Left -> Right
+       dp = gridC(ii) - gridC(ii-1)
+       dens = cellCMass(ii) / dp
+       if (dens .gt. bnds(2)) then
+          ! Too much mass, give to next cell over
+          densdiff = dens - bnds(2)
+          massdiff = densdiff * dp
+          cellCMass(ii) = cellCMass(ii) - massdiff
+          cellCMass(ii+1) = cellCMass(ii+1) + massdiff
+       else if (dens .lt. bnds(1)) then
+          ! Too little mass, take from next cell over
+          densdiff = bnds(1) - dens
+          massdiff = densdiff * dp
+          cellCMass(ii) = cellCMass(ii) + massdiff
+          cellCMass(ii+1) = cellCMass(ii+1) - massdiff
+       end if
+
+       ! Right -> Left
+       dp = gridC(ncellC-ii+1) - gridC(ncellC-ii)
+       dens = cellCMass(ncellC-ii+1) / dp
+       if (dens .gt. bnds(2)) then
+          ! Too much mass, give to next cell over
+          densdiff = dens - bnds(2)
+          massdiff = densdiff * dp
+          cellCMass(ncellC-ii+1) = cellCMass(ncellC-ii+1) - massdiff
+          cellCMass(ncellC-ii) = cellCMass(ncellC-ii) + massdiff
+       else if (dens .lt. bnds(1)) then
+          ! Too little mass, take from next cell over
+          densdiff = bnds(1) - dens
+          massdiff = densdiff * dp
+          cellCMass(ncellC-ii+1) = cellCMass(ncellC-ii+1) + massdiff
+          cellCMass(ncellC-ii) = cellCMass(ncellC-ii) - massdiff
+       end if
+    end do
+    
+  end subroutine mass_borrow
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  subroutine collect_mass(ncell, qdp, ncellC, cellCMass, cellInsecs)
+
+    use iso_fortran_env, only: int32, real64
+
+    implicit none
+
+    integer(int32), intent(in) :: ncell, ncellC
+    real(real64), intent(out)  :: qdp(ncell)
+    real(real64), intent(in)   :: cellCMass(ncellC)
+    integer(int32), intent(in) :: cellInsecs(ncellC)
+
+    integer(int32) :: ii
+
+    qdp = 0.0_real64
+    do ii = 1, ncellC
+       qdp(cellInsecs(ii)) = qdp(cellInsecs(ii)) + cellCMass(ii)
+    end do
+
+  end subroutine collect_mass
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Checks that a parabolic piece is monotone.
@@ -1128,4 +1127,4 @@ contains
 
   end function parab_piece_global_bnd_preserve_check
 
-end submodule vertremap_redux_2
+end submodule vertremap_nmb

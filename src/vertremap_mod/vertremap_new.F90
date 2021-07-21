@@ -3,7 +3,7 @@
 ! as the original, just simplified.
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-submodule (vertremap_mod) vertremap_redux
+submodule (vertremap_mod) vertremap_new
 
 contains
 
@@ -35,12 +35,6 @@ contains
     ! cumulative mass function
     integer(int32)              :: K(interpord, 0:ncell) ! Indices for each
     ! interpolation polynomial, for getting edge values.
-    real(real64)                :: A(interpord,interpord) ! Coefficient matrix for
-    ! getting polynomial interpolant. Ax=b
-    real(real64)                :: x(interpord) ! Holds coefficients for polynomial
-    ! interpolant. Ax=b
-    real(real64)                :: b(interpord) ! Holds total mass at the grid
-    ! points for the interpolant. Ax=b
     real(real64)                :: edgevals(0:ncell) ! Estimated edge values
     integer(int32)              :: limreq(0:ncell) ! Array for holding whether
     ! an edge estimate needs to be limited.
@@ -54,10 +48,7 @@ contains
     ! calculations.
     integer(int32)              :: temps_int(2) ! Temporary integer values used
     ! in calculations.
-    integer(int32)              :: ipiv(interpord) ! Array for dsgesv call.
-    real(real64)                :: work(interpord, 1) ! Work array for dsgesv call.
-    real(real32)                :: swork(interpord, interpord+1) ! Swork array for dsgev call.
-    integer(int32)              :: jj, kk, kidx, mm, midx, ll, lidx
+    integer(int32)              :: jj, kk, kidx
     ! Counters for do loops
 
 
@@ -164,7 +155,7 @@ contains
     if (verbosity .eq. 1_int32) then
        temps_int(1) = 0_int32
        do jj = 1, ncell
-          if (parab_piece_monotone_check(ncell, parabvals(:, jj), jj) .eq. 0_int32) then ! If not monotone, trip flag.
+          if (parab_piece_monotone_check(parabvals(:, jj)) .eq. 0_int32) then ! If not monotone, trip flag.
              temps_int(1) = 1_int32
              !print *, '  ~~ !WARNING! Parabolic piece is not monotone:', jj
           end if
@@ -464,8 +455,8 @@ contains
     real(real64), intent(inout) :: parabvals(3) ! Original parabola values
     real(real64), intent(in) :: C ! Scale factor for second derivative approximations
     integer(int32), intent(in) :: cell ! Current cell we are correcting the edge value for
-    real(real64) :: corr_edgeval ! Corrected edge value
     real(real64) :: temps_dp(4) ! Holds working real variables
+    real(real64) :: tol = 3.0e-15 ! Tolerance for REAL comparisons
     integer(int32) :: temps_int(1)
 
     ! The boundary cells must be handled differently than Colella08.
@@ -485,7 +476,7 @@ contains
           end if
 
           ! Correct parabolic piece values
-          if (temps_dp(1) .ne. 0) then
+          if (abs(temps_dp(1)) .lt. tol) then
              parabvals(1) = avgdens(1) + (parabvals(1) - avgdens(1)) * temps_dp(2) / temps_dp(1)
              parabvals(2) = avgdens(1) + (parabvals(2) - avgdens(1)) * temps_dp(2) / temps_dp(1)
           else
@@ -540,7 +531,7 @@ contains
           end if
 
           ! Correct parabolic piece values
-          if (temps_dp(1) .ne. 0) then
+          if (abs(temps_dp(1)) .lt. tol) then
              parabvals(1) = avgdens(2) + (parabvals(1) - avgdens(2)) * temps_dp(2) / temps_dp(1)
              parabvals(2) = avgdens(2) + (parabvals(2) - avgdens(2)) * temps_dp(2) / temps_dp(1)
           else
@@ -612,7 +603,7 @@ contains
           end if
 
           ! Correct parabolic piece values
-          if (temps_dp(1) .ne. 0) then
+          if (abs(temps_dp(1)) .lt. tol) then
              parabvals(1) = avgdens(ncell-1) + (parabvals(1) - avgdens(ncell-1)) * temps_dp(2) / temps_dp(1)
              parabvals(2) = avgdens(ncell-1) + (parabvals(2) - avgdens(ncell-1)) * temps_dp(2) / temps_dp(1)
           else
@@ -671,7 +662,7 @@ contains
           end if
 
           ! Correct parabolic piece values
-          if (temps_dp(1) .ne. 0) then
+          if (abs(temps_dp(1)) .lt. tol) then
              parabvals(1) = avgdens(ncell) + (parabvals(1) - avgdens(ncell)) * temps_dp(2) / temps_dp(1)
              parabvals(2) = avgdens(ncell) + (parabvals(2) - avgdens(ncell)) * temps_dp(2) / temps_dp(1)
           else
@@ -732,7 +723,7 @@ contains
           end if
 
           ! Correct parabolic piece values
-          if (temps_dp(1) .ne. 0) then
+          if (abs(temps_dp(1)) .lt. tol) then
              parabvals(1) = avgdens(cell) + (parabvals(1) - avgdens(cell)) * temps_dp(2) / temps_dp(1)
              parabvals(2) = avgdens(cell) + (parabvals(2) - avgdens(cell)) * temps_dp(2) / temps_dp(1)
           else
@@ -862,15 +853,13 @@ contains
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   ! Checks that a parabolic piece is monotone.
-  function parab_piece_monotone_check(ncell, parabvals, cell) result(res)
+  function parab_piece_monotone_check(parabvals) result(res)
 
     use iso_fortran_env, only: int32, real64
 
     implicit none
 
-    integer(int32), intent(in) :: ncell
     real(real64), intent(in) :: parabvals(3)
-    integer(int32), intent(in) :: cell
     integer(int32) :: res
     real(real64) :: temp_dp
 
@@ -950,4 +939,4 @@ contains
 
   end function parab_piece_local_bnd_preserve_check
 
-end submodule vertremap_redux
+end submodule vertremap_new

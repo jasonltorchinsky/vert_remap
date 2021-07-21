@@ -20,6 +20,7 @@ from approx_plot import gen_approx_plot
 from massdiff_plot import gen_massdiff_plot
 from masserror_plot import gen_masserror_plot
 from pw_diff_plot import gen_pw_diff_plot
+from error_compare_plot import gen_error_comp_plot
 
 
 ################################################################################
@@ -33,7 +34,7 @@ outputDir = path.join("..", "output")
 opts, args = getopt.getopt(argv[1:], '', {'ogrid=', 'tfunc=', 'plterr=',
                                           'pltpwerr=', 'pltapprox=',
                                           'pltmassdiff=', 'pltmasserr=',
-                                          'pltpwdiff=',
+                                          'pltpwdiff=','plterrcomp=','norm=',
                                           'alg='})
 
 ogrid = ''
@@ -44,6 +45,8 @@ pltapprox = ''
 pltmassdiff = ''
 pltmasserr = ''
 pltpwdiff = ''
+plterrcomp = ''
+norm = 0
 alg = ''
 for opt, arg in opts:
     if opt == '--ogrid':
@@ -62,6 +65,10 @@ for opt, arg in opts:
         pltmasserr = arg
     elif opt == '--pltpwdiff':
         pltpwdiff = arg
+    elif opt == '--plterrcomp':
+        plterrcomp = arg
+    elif opt == '--norm':
+        norm = int(arg)
     elif opt == '--alg':
         alg = arg
 
@@ -82,6 +89,8 @@ elif ogrid == 'sin':
     ogridFunc = '$0.5\,(1 - cos(\pi x))$'
 elif ogrid == 'rng':
     ogridFunc = 'Random, $[-h/4, h/4]$'
+elif ogrid == 'sng':
+    ogridFunc = 'Random, $[-h/32, h/32]$'
 elif ogrid == 'uni':
     ogridFunc = 'Uniform'
 else:
@@ -133,3 +142,7 @@ if (pltpwdiff == 'yes'):
     print(' ~~ Creating point-wise difference plot...')
     gen_pw_diff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc, alg)
     print(' ~~ Point-wise difference plot created!')
+if (plterrcomp == 'yes'):
+    print(' ~~ Creating accuracy comparison plot...')
+    gen_error_comp_plot(outputDir, ncellList, norm, alg)
+    print(' ~~ Accuracy comparison plot created!')
