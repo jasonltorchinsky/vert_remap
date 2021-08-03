@@ -15,4 +15,13 @@ set(CMAKE_BUILD_TYPE Debug)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
+get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
+if ((Fortran_COMPILER_NAME MATCHES "gfortran*") 
+    OR (Fortran_COMPILER_NAME MATCHES "f95*"))
+  # gfortran
+  set(CMAKE_Fortran_FLAGS "-Wall -Wextra -Wconversion -pedantic\
+                           -ffpe-trap=denormal -g")
+endif ((Fortran_COMPILER_NAME MATCHES "gfortran*") 
+       OR (Fortran_COMPILER_NAME MATCHES "f95*"))
+
 add_subdirectory(src)

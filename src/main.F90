@@ -8,6 +8,9 @@ program vert_remap
 
   use iso_fortran_env, only: int32, real64
   use netcdf
+  use conv_comb_mod
+  use get_insecs_mod
+  use mass_borrow_mod
   use output_mod
   use utils_mod
   use vertremap_mod
@@ -31,8 +34,12 @@ program vert_remap
   real(real64), allocatable :: grid1_stg(:), grid2_stg(:) ! Staggered grid at
   ! cell centers 
   ! (dx/2, ..., H-dx/2)
-  real(real64), allocatable :: QOrig(:), QNew(:) ! Average density in each cell
-  real(real64), allocatable :: QdpOrig(:), QdpNew(:) ! Mass in each cell
+  real(real64), allocatable :: Q1(:), Q2(:) ! Average density in each cell
+  real(real64), allocatable :: Qdp1(:), Qdp2(:) ! Mass in each cell
+  real(real64), allocatable :: Qdp3(:) ! Extra arrays to hold mass in each cell
+  ! for extra purposes
+  integer(int32), allocatable :: cell_insecs(:,:)
+  real(real64), allocatable :: ubnds(:), lbnds(:) ! Local bounds
   real(real64), allocatable :: QTrue(:) ! True density on the transformed grid
   type(outfile)             :: dataFile ! File we write the output to
   character(len=50)         :: outdirName, outfileName ! Directory, file for
@@ -70,13 +77,16 @@ program vert_remap
         print *, '  ogrid: Form of original grid. Options: cub (x^3),'
         print *, '         rng (+-h/4), sig (sigmoid-ish), sin (sine),'
         print *, '         sqr (x^2), uni (uniform).'
-        print *, '  tfunc: Test density function. Options: exp (e^x),'
+        print *, '  tfunc: Test density function. Options: ,'
+        print *, '         asr (asymmetric parabola), exp (e^x),'
+        print *, '         gau (e^(-x^2)), nxp (e^(1-x)), osc (sin(8 pi x)),'
         print *, '         sig (sigmoid-ish), stp (step function),'
-        print *, '         wdg (wedge).'
+        print *, '         sqr (centered parabola), wdg (wedge).'
         print *, '  alg: Which algorithm to use. Options: "on" for'
         print *, '       original algorithm with limiter on everywhere,'
         print *, '       "off" for original algorithm with the limiter'
-        print *, '       off on the boundaries, "new" for new algorithm.'
+        print *, '       off on the boundaries, "new" for new algorithm'
+        print *, '       "ngh" for new algorithm with ghost cells.'
         print *, '  seed: Seed for RNG.'
         stop
      case('-v', '--verbose')
@@ -97,8 +107,26 @@ program vert_remap
            alg = 10
         else if (alg_str .eq. 'off') then
            alg = 11
+        else if (alg_str .eq. 'fff') then
+           alg = 12
         else if (alg_str .eq. 'new') then
            alg = 20
+        else if (alg_str .eq. 'ngh') then
+           alg = 21
+        else if (alg_str .eq. 'ngf') then
+           alg = 22
+        else if (alg_str .eq. 'nmb') then
+           alg = 23
+        else if (alg_str .eq. 'cs8') then
+           alg = 24
+        else if (alg_str .eq. 'lmb') then
+           alg = 31
+        else if (alg_str .eq. 'lco') then
+           alg = 32
+        else if (alg_str .eq. 'llc') then
+           alg = 33
+        else if (alg_str .eq. 'gmb') then
+           alg = 34
         end if
      case('seed')
         call get_command_argument(ii + 1, arg)
@@ -149,23 +177,81 @@ program vert_remap
   end do
 
   ! Calulate density, mass of each cell.
-  allocate(QOrig(ncell))
-  allocate(QdpOrig(ncell))
+  allocate(Q1(ncell))
+  allocate(Qdp1(ncell))
 
   do ii = 1, ncell
-     QOrig(ii) = Q_func(grid1_stg(ii), tfunc)
-     QdpOrig(ii) = QOrig(ii) * dp1(ii)
+     Q1(ii) = Q_func(grid1_stg(ii), tfunc)
+     Qdp1(ii) = Q1(ii) * dp1(ii)
   end do
 
   ! Remap Qdp to grid 1
-  allocate(QdpNew(ncell)) ! Remap is in-place, so we make a new array.
-  QdpNew = QdpOrig
-  call remap1(QdpNew, 1, ncell, 1, dp1, dp2, alg, verbose)
+  allocate(Qdp2(ncell)) ! Remap is in-place, so we make a new array.
+  Qdp2 = Qdp1
+  if (alg .lt. 30) then
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, alg, verbose)
+  else if (alg .eq. 31) then ! q_alg = 11 +  mass-borrowing
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
+     ! Get bounds
+     allocate(cell_insecs(2,ncell))
+     call get_insecs(ncell, grid1, grid2, cell_insecs)
+     do ii = 1, ncell ! Domain of dependence is two greater than intersection
+        if (cell_insecs(1,ii) .ge. 3) then
+           cell_insecs(1,ii) = cell_insecs(1,ii) - 2
+        else if (cell_insecs(1,ii) .eq. 2) then
+           cell_insecs(1,ii) = cell_insecs(1,ii) - 1
+        end if
+
+        if (cell_insecs(2,ii) .le. ncell-2) then
+           cell_insecs(2,ii) = cell_insecs(2,ii) + 2
+        else if (cell_insecs(2,ii) .eq. ncell-1) then
+           cell_insecs(2,ii) = cell_insecs(2,ii) + 1
+        end if
+     end do
+     
+     allocate(ubnds(ncell))
+     allocate(lbnds(ncell))
+     do ii = 1, ncell
+        ubnds(ii) = maxval(Qdp1(cell_insecs(1,ii):cell_insecs(2,ii)) &
+             & / dp1(cell_insecs(1,ii):cell_insecs(2,ii)))
+        lbnds(ii) = minval(Qdp1(cell_insecs(1,ii):cell_insecs(2,ii)) &
+             & / dp1(cell_insecs(1,ii):cell_insecs(2,ii)))
+     end do
+     call borrow_mass(ncell, Qdp2, dp2, ubnds, lbnds)
+  else if (alg .eq. 32) then ! q_alg = 11 + linear combination
+     allocate(Qdp3(ncell))
+     Qdp3 = Qdp1
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
+     call remap1(Qdp3, 1, ncell, 1, dp1, dp2, 10, verbose)
+     call conv_comb(ncell, Qdp3, Qdp2, dp2, maxval(Qdp1/dp1), &
+          & minval(Qdp1/dp1))
+  else if (alg .eq. 33) then
+     allocate(Qdp3(ncell))
+     Qdp3 = Qdp1
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
+     call remap1(Qdp3, 1, ncell, 1, dp1, dp2, 10, verbose)
+     call conv_comb(ncell/2, Qdp3(1:ncell/2), Qdp2(1:ncell/2), dp2(1:ncell/2), &
+          & maxval(Qdp1(1:ncell/2)/dp1(1:ncell/2)), &
+          & minval(Qdp1(1:ncell/2)/dp1(1:ncell/2)))
+     call conv_comb(ncell/2, Qdp3(ncell/2+1:ncell), Qdp2(ncell/2+1:ncell), &
+          & dp2(ncell/2+1:ncell), &
+          & maxval(Qdp1(ncell/2+1:ncell)/dp1(ncell/2+1:ncell)), &
+          & minval(Qdp1(ncell/2+1:ncell)/dp1(ncell/2+1:ncell)))
+  else if (alg .eq. 34) then
+     call remap1(Qdp2, 1, ncell, 1, dp1, dp2, 11, verbose)
+     ! Get bounds
+     allocate(ubnds(ncell))
+     allocate(lbnds(ncell))
+     ubnds = maxval(Qdp1/dp1)
+     lbnds = minval(Qdp1/dp1)
+     call borrow_mass(ncell, Qdp2, dp2, ubnds, lbnds)
+  end if
+  
 
   ! Get density from mass
-  allocate(QNew(ncell))
+  allocate(Q2(ncell))
   do ii = 1, ncell
-     QNew(ii) = QdpNew(ii) / dp2(ii)
+     Q2(ii) = Qdp2(ii) / dp2(ii)
   end do
 
   ! Get true density on the transformed grid
@@ -173,6 +259,17 @@ program vert_remap
   do ii = 1, ncell
      QTrue(ii) = Q_func(grid2_stg(ii), tfunc)
   end do
+
+  if (verbose .eq. 1) then
+     call check_global_bounded(ncell, Q2, maxval(Q1), minval(Q1), ii)
+     if (ii .eq. 0) then ! Global bounds violated
+        print *, ' ~~ Global bounds have been violated:'
+        print *, '    Max extrema difference: ', &
+             & max(maxval(Q2) - maxval(Q1), minval(Q1) - minval(Q2))
+     else if (ii .eq. 1) then ! Global bounds passed
+        continue
+     end if
+  end if
 
   ! Output information
   outdirName = '../output' // repeat(' ', 41)
@@ -185,17 +282,17 @@ program vert_remap
        & [ncell, nlev], &
        & 11, &
        & ['grid1' // repeat(' ', 10), 'dp1' // repeat(' ', 12), &
-       &  'grid1_stg' // repeat(' ', 6), 'QOrig' // repeat(' ', 10), &
-       &  'QdpOrig' // repeat(' ', 8), 'grid2' // repeat(' ', 10), &
+       &  'grid1_stg' // repeat(' ', 6), 'Q1' // repeat(' ', 13), &
+       &  'Qdp1' // repeat(' ', 11), 'grid2' // repeat(' ', 10), &
        &  'dp2' // repeat(' ', 12), 'grid2_stg' // repeat(' ', 6), &
-       &  'QNew' // repeat(' ', 11), 'QdpNew' // repeat(' ', 9), &
+       &  'Q2' // repeat(' ', 13), 'Qdp2' // repeat(' ', 11), &
        &  'QTrue' // repeat(' ', 10)], &
        & [(nf90_double, ii = 1, 11)], &
        & [2, (1, ii = 2, 5), 2, (1, ii = 7, 11)], &
        & outdirName, outfileName, dataFile)
   call netcdf_add_metadata(dataFile)
-  call netcdf_write_output(nlev, ncell, grid1, dp1, grid1_stg, QOrig, &
-       & QdpOrig, grid2, dp2, grid2_stg, QNew, QdpNew, QTrue, dataFile)
+  call netcdf_write_output(nlev, ncell, grid1, dp1, grid1_stg, Q1, &
+       & Qdp1, grid2, dp2, grid2_stg, Q2, Qdp2, QTrue, dataFile)
   call netcdf_close_outfile(dataFile)
 
 contains
@@ -239,6 +336,15 @@ contains
           call random_number(rand_dp)
           y = x + 0.25_real64 * uni_spc * rand_dp
        end if
+    case('sng')
+       if ((x .lt. 1.0_real64 / real(nlev - 1, real64)) &
+            & .or. (x .gt. 1.0_real64 - 1.0_real64 / real(nlev - 1, real64))) then
+          y = x
+       else
+          uni_spc = 1.0_real64 / (nlev - 1.0_real64)
+          call random_number(rand_dp)
+          y = x + 3.125e-2_real64 * uni_spc * rand_dp
+       end if
     case('uni')
        y = x
     end select
@@ -254,10 +360,11 @@ contains
     real(real64), intent(in) :: x
     character(len=8)         :: tfunc
     real(real64)             :: y
-
+    real(real64)             :: pi_dp
+    
     select case(trim(adjustl(tfunc)))
     case('exp')
-       y = exp(x)
+       y = exp(x) / exp(1.0_real64)
     case('stp')
        if (x .le. 0.5) then
           y = 0.0_real64
@@ -265,13 +372,24 @@ contains
           y = 1.0_real64
        end if
     case('sig')
-       y = 1.0_real64/(1.0_real64 + exp(-30.0_real64*(x-0.5_real64)))
+       y = 1.0_real64 / (1.0_real64 + exp(-10.0_real64 * x))
     case('wdg')
        if (x .le. 0.5) then
           y = 0.5_real64*x
        else if (x .gt. 0.5) then
           y = 1.5_real64*x - 0.5_real64
        end if
+    case('nxp')
+       y = exp(1.0_real64 - x) / exp(1.0_real64)
+    case('sqr')
+       y = 4.0_real64*(x-0.5_real64)**2
+    case('osc')
+       pi_dp = 4.0_real64 * atan(1.0_real64)
+       y = 0.5_real64 * (1.0_real64 + sin(8.0_real64 * pi_dp * x))
+    case('gau')
+       y = exp(-0.5_real64 * ((x - 0.5_real64)/0.05_real64)**2_int32)
+    case('asr')
+       y = (16.0_real64 / 9.0_real64) * (x - 0.25_real64)**2_int32
     end select
 
   end function Q_func

@@ -41,6 +41,23 @@ module vertremap_mod
   integer(int32) , parameter :: int_kind = int32
   integer(int32) , parameter :: real_kind = real64
 
+  public :: remap_cs08
+  interface remap_cs08
+      module subroutine remap_cs08_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
+        use iso_fortran_env, only: int32, real64
+        implicit none
+        integer(int32), intent(in)    :: ncell ! Number of cells in the grid
+        real(real64),   intent(inout) :: qdp(ncell) ! Mass of each cell in original
+        ! grid.
+        real(real64),   intent(in)    :: dp1(ncell), dp2(ncell) ! Width of cells for
+        ! original, new grids.
+        integer(int32), intent(in)    :: remap_alg ! Algorithm flag to use for
+        ! remapping.
+        integer(int32), intent(in)    :: verbosity ! Print debug messages (1) or
+        ! not (0).
+      end subroutine remap_cs08_sbr
+   end interface remap_cs08
+  
   public :: new_remap
   interface new_remap
      module subroutine new_remap_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
@@ -55,6 +72,36 @@ module vertremap_mod
        integer(int32), intent(in)  :: verbosity ! Print debug messages (1) or not (0)
      end subroutine new_remap_sbr
   end interface new_remap
+
+  public :: ngh_remap
+  interface ngh_remap
+     module subroutine ngh_remap_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
+       use iso_fortran_env, only: int32, real64
+       implicit none
+       integer(int32), intent(in)  :: ncell ! Number of cells in the grid
+       real(real64), intent(inout) :: qdp(ncell) ! Mass of each cell
+       real(real64), intent(in)    :: dp1(ncell), dp2(ncell) ! Width of cells for
+       ! original, new grids
+       integer(int32), intent(in)  :: remap_alg ! Algorithm flag to use for
+       ! remapping
+       integer(int32), intent(in)  :: verbosity ! Print debug messages (1) or not (0)
+     end subroutine ngh_remap_sbr
+  end interface ngh_remap
+
+  public :: nmb_remap
+  interface nmb_remap
+     module subroutine nmb_remap_sbr(qdp, ncell, dp1, dp2, remap_alg, verbosity)
+       use iso_fortran_env, only: int32, real64
+       implicit none
+       integer(int32), intent(in)  :: ncell ! Number of cells in the grid
+       real(real64), intent(inout) :: qdp(ncell) ! Mass of each cell
+       real(real64), intent(in)    :: dp1(ncell), dp2(ncell) ! Width of cells for
+       ! original, new grids
+       integer(int32), intent(in)  :: remap_alg ! Algorithm flag to use for
+       ! remapping
+       integer(int32), intent(in)  :: verbosity ! Print debug messages (1) or not (0)
+     end subroutine nmb_remap_sbr
+  end interface nmb_remap
 
 contains
 
@@ -88,21 +135,31 @@ contains
     logical :: abrtf=.false.
 
     q = remap_alg
-    if ( (q.ne.-1) .and. (q.ne.0) .and. (q.ne.1) .and. (q.ne.10) .and. (q.ne.11) .and. (q .ne. 20))&
-         error stop 'Bad remap alg value. Use -1, 0, 1, 10, 11, or 20.'
-
+    if ( (q .ne. -1) .and. (q .ne. 0) .and. (q .ne. 1) &
+         & .and. (q .ne. 10) .and. (q .ne. 11) .and. (q .ne. 12) &
+         & .and. (q .ne. 20) .and. (q .ne. 21) .and. (q .ne. 22) .and. (q .ne. 23) .and. (q .ne. 24)) then
+       error stop 'Bad remap alg value. Use -1--1, 10--12, or 20--23.'
+    end if
     if (remap_alg == -1) then
        call remap1_nofilter(qdp, nx, nlev, qsize, dp1, dp2)
        return
     endif
-    if (remap_alg >= 20) then ! New remapping algorithm - Jason Torchinsky Summer 2021
-       call new_remap(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg, verbosity)
-       return
-    end if
-    if (remap_alg >= 1) then
+    if ((remap_alg >= 1) .and. (remap_alg < 20)) then
        call remap_Q_ppm(qdp, nx, nlev, qsize, dp1, dp2, remap_alg)
        return
-    endif
+    else if (remap_alg == 20) then ! New remapping algorithm - Jason Torchinsky Summer 2021
+       call new_remap(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg, verbosity)
+       return
+    else if (remap_alg == 21 .or. remap_alg == 22) then ! New remapping algorithm with ghost cells - Jason Torchinsky Summer 2021
+       call ngh_remap(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg, verbosity)
+       return
+    else if (remap_alg == 23) then ! New remapping algorithm with ghost cells and source-grid borrowing
+       call nmb_remap(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg, verbosity)
+       return
+    else if (remap_alg == 24) then ! Remap algorithm of Colella 2008
+       call remap_cs08(Qdp(1, 1, :, 1), nlev, dp1(1, 1, :), dp2(1, 1, :), remap_alg, verbosity)
+       return
+    end if
 
 #if (defined COLUMN_OPENMP)
     !$omp parallel do private(q,i,j,z1c,z2c,zv,k,dp_np1,dp_star,Qcol,zkr,ilev) &
@@ -608,7 +665,7 @@ contains
                 call linextrap(dpo(2), dpo(1), dpo(0), dpo(-1), ao(2), ao(1), ao(0), ao(-1), 1, ext(1), ext(2))
                 call linextrap(dpo(nlev-1), dpo(nlev), dpo(nlev+1), dpo(nlev+2),&
                      ao(nlev-1), ao(nlev), ao(nlev+1), ao(nlev+2), 1, ext(1), ext(2))
-             else if (remap_alg==11) then
+             else if (remap_alg==11 .or. remap_alg==12) then
                 call linextrap(dpo(2), dpo(1), dpo(0), dpo(-1), ao(2), ao(1), ao(0), ao(-1), 0, ext(1), ext(2))
                 call linextrap(dpo(nlev-1), dpo(nlev), dpo(nlev+1), dpo(nlev+2),&
                      ao(nlev-1), ao(nlev), ao(nlev+1), ao(nlev+2), 0, ext(1), ext(2))
@@ -734,7 +791,7 @@ contains
        enddo
 
        ! switch to piecewise constant near the boundaries
-       if (remap_alg==2) then
+       if (remap_alg==2 .or. remap_alg == 12) then
           do j=1,vert_remap_tom
              coefs(0,j) = a(j)
              coefs(1:2,j) = 0.D0

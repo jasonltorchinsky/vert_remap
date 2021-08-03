@@ -80,6 +80,9 @@ vert_remap_EXTERNAL_OBJECTS =
 vert_remap: src/CMakeFiles/vert_remap.dir/main.F90.o
 vert_remap: src/CMakeFiles/vert_remap.dir/build.make
 vert_remap: /usr/local/lib/libnetcdff.so.7.0.0
+vert_remap: src/conv_comb_mod/libconv_comb_mod.a
+vert_remap: src/get_insecs_mod/libget_insecs_mod.a
+vert_remap: src/mass_borrow_mod/libmass_borrow_mod.a
 vert_remap: src/output_mod/liboutput_mod.a
 vert_remap: src/utils_mod/libutils_mod.a
 vert_remap: src/vertremap_mod/libvertremap_mod.a

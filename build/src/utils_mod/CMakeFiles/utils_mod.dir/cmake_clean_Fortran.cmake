@@ -8,6 +8,10 @@ FILE(REMOVE
   "UTILS_MOD@NETCDF_UTILS_MOD.smod"
   "CMakeFiles/utils_mod.dir/utils_mod@netcdf_utils_mod.smod.stamp"
 
+  "utils_mod@remap_check_utils_mod.smod"
+  "UTILS_MOD@REMAP_CHECK_UTILS_MOD.smod"
+  "CMakeFiles/utils_mod.dir/utils_mod@remap_check_utils_mod.smod.stamp"
+
   "utils_mod@sys_utils_mod.smod"
   "UTILS_MOD@SYS_UTILS_MOD.smod"
   "CMakeFiles/utils_mod.dir/utils_mod@sys_utils_mod.smod.stamp"

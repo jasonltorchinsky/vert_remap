@@ -23,6 +23,7 @@ module utils_mod
   end type outfile
 
   ! Visible subroutines
+  !! netcdf_utils_mod
   public :: netcdf_err_check
   interface netcdf_err_check
      module subroutine netcdf_err_check_sbr(statusFlag)
@@ -61,6 +62,20 @@ module utils_mod
      end subroutine netcdf_close_outfile_sbr
   end interface netcdf_close_outfile
 
+  !! remap_check_utils_mod
+  public :: check_global_bounded
+  interface check_global_bounded
+     module subroutine check_global_bounded_sbr(ncell, Q, ubnd, lbnd, flag)
+       use iso_fortran_env, only: int32, real64
+       implicit none
+       integer(int32), intent(in) :: ncell
+       real(real64), intent(in) :: Q(ncell)
+       real(real64), intent(in) :: ubnd, lbnd
+       integer(int32), intent(inout) :: flag
+     end subroutine check_global_bounded_sbr
+  end interface check_global_bounded
+
+  !! sys_utils_mod
   public :: mkdir
   interface mkdir
      module subroutine mkdir_sbr(dirName)

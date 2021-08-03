@@ -21,30 +21,28 @@ def gen_massdiff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
 
     massDiffList = np.zeros(shape=nruns)
 
-    print(" ~~ Reading output from each run and calculating the " +
-          "total mass difference...")
     for runIdx in range(nruns):
         ncell = ncellList[runIdx]
-        QNew = np.zeros(shape=(ncell))
-        QTrue = np.zeros_like(QNew)
-        dp2 = np.zeros_like(QNew)
+        Q2 = np.zeros(shape=(ncell))
+        Q1 = np.zeros_like(Q2)
+        dp1 = np.zeros_like(Q2)
+        dp2 = np.zeros_like(Q2)
         runStr = '{0:08d}'.format(ncell)
         fileName = ogrid + '_' + tfunc + '_' + runStr + '_' + alg + '.nc'
         filePath = path.join(outputDir, fileName)
         with xr.open_dataset(filePath) as ds:
-            QNew[:] = np.asarray(ds.QNew)[:]
-            QTrue[:] = np.asarray(ds.QTrue)[:]
+            Q2[:] = np.asarray(ds.Q2)[:]
+            Q1[:] = np.asarray(ds.Q1)[:]
+            dp1[:] = np.asarray(ds.dp1)[:]
             dp2[:] = np.asarray(ds.dp2)[:]
 
         # Calculate total mass error
-        trueMass = np.sum(np.multiply(QTrue, dp2))
-        approxMass = np.sum(np.multiply(QNew, dp2))
+        trueMass = np.sum(np.multiply(Q1, dp1))
+        approxMass = np.sum(np.multiply(Q2, dp2))
         massDiffList[runIdx] = approxMass - trueMass
         
     ###########################################################################
     # Plot the total mass differences
-
-    print(" ~~ Plotting the total mass difference...")
     
     # Make sure the output directory for plots has been created.
     plotsPath = path.join('..', 'plots')
@@ -65,7 +63,7 @@ def gen_massdiff_plot(outputDir, ncellList, ogrid, ogridFunc, tfunc, tfuncFunc,
     plt.title('Original Grid: ' + ogridFunc + '\nTest Function: ' + tfuncFunc + 
               '\nAlgorithm: ' + alg.title())
     plt.xlabel('Cell Count')
-    plt.ylabel('Mass Difference (True - Approximation)')
+    plt.ylabel('Mass Difference (Remapped - Original)')
 
     # Save the plot to file
     fileName = 'massdiff_' + ogrid + '_' + tfunc + '_' + alg + '.png'

@@ -1,6 +1,7 @@
 # Defines utils_mod as a library
 add_library(utils_mod
             utils_mod.F90
+            remap_check_utils_mod.F90
             netcdf_utils_mod.F90
             sys_utils_mod.F90
            )

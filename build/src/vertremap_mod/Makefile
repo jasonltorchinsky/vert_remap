@@ -152,32 +152,113 @@ vertremap_base.F90.s:
 	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_base.F90.s
 .PHONY : vertremap_base.F90.s
 
-vertremap_redux.o: vertremap_redux.F90.o
+vertremap_cs08.o: vertremap_cs08.F90.o
 
-.PHONY : vertremap_redux.o
+.PHONY : vertremap_cs08.o
 
 # target to build an object file
-vertremap_redux.F90.o:
-	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.o
-.PHONY : vertremap_redux.F90.o
+vertremap_cs08.F90.o:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_cs08.F90.o
+.PHONY : vertremap_cs08.F90.o
 
-vertremap_redux.i: vertremap_redux.F90.i
+vertremap_cs08.i: vertremap_cs08.F90.i
 
-.PHONY : vertremap_redux.i
+.PHONY : vertremap_cs08.i
 
 # target to preprocess a source file
-vertremap_redux.F90.i:
-	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.i
-.PHONY : vertremap_redux.F90.i
+vertremap_cs08.F90.i:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_cs08.F90.i
+.PHONY : vertremap_cs08.F90.i
 
-vertremap_redux.s: vertremap_redux.F90.s
+vertremap_cs08.s: vertremap_cs08.F90.s
 
-.PHONY : vertremap_redux.s
+.PHONY : vertremap_cs08.s
 
 # target to generate assembly for a file
-vertremap_redux.F90.s:
-	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_redux.F90.s
-.PHONY : vertremap_redux.F90.s
+vertremap_cs08.F90.s:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_cs08.F90.s
+.PHONY : vertremap_cs08.F90.s
+
+vertremap_new.o: vertremap_new.F90.o
+
+.PHONY : vertremap_new.o
+
+# target to build an object file
+vertremap_new.F90.o:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_new.F90.o
+.PHONY : vertremap_new.F90.o
+
+vertremap_new.i: vertremap_new.F90.i
+
+.PHONY : vertremap_new.i
+
+# target to preprocess a source file
+vertremap_new.F90.i:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_new.F90.i
+.PHONY : vertremap_new.F90.i
+
+vertremap_new.s: vertremap_new.F90.s
+
+.PHONY : vertremap_new.s
+
+# target to generate assembly for a file
+vertremap_new.F90.s:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_new.F90.s
+.PHONY : vertremap_new.F90.s
+
+vertremap_ngh.o: vertremap_ngh.F90.o
+
+.PHONY : vertremap_ngh.o
+
+# target to build an object file
+vertremap_ngh.F90.o:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_ngh.F90.o
+.PHONY : vertremap_ngh.F90.o
+
+vertremap_ngh.i: vertremap_ngh.F90.i
+
+.PHONY : vertremap_ngh.i
+
+# target to preprocess a source file
+vertremap_ngh.F90.i:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_ngh.F90.i
+.PHONY : vertremap_ngh.F90.i
+
+vertremap_ngh.s: vertremap_ngh.F90.s
+
+.PHONY : vertremap_ngh.s
+
+# target to generate assembly for a file
+vertremap_ngh.F90.s:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_ngh.F90.s
+.PHONY : vertremap_ngh.F90.s
+
+vertremap_nmb.o: vertremap_nmb.F90.o
+
+.PHONY : vertremap_nmb.o
+
+# target to build an object file
+vertremap_nmb.F90.o:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_nmb.F90.o
+.PHONY : vertremap_nmb.F90.o
+
+vertremap_nmb.i: vertremap_nmb.F90.i
+
+.PHONY : vertremap_nmb.i
+
+# target to preprocess a source file
+vertremap_nmb.F90.i:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_nmb.F90.i
+.PHONY : vertremap_nmb.F90.i
+
+vertremap_nmb.s: vertremap_nmb.F90.s
+
+.PHONY : vertremap_nmb.s
+
+# target to generate assembly for a file
+vertremap_nmb.F90.s:
+	cd "/mnt/c/Users/Owner/Education and Research/Graduate School/2020 - 2021 - Third Year/2020 - 2021 - Other/2021 - Summer Practicum/vert_remap/build" && $(MAKE) -f src/vertremap_mod/CMakeFiles/vertremap_mod.dir/build.make src/vertremap_mod/CMakeFiles/vertremap_mod.dir/vertremap_nmb.F90.s
+.PHONY : vertremap_nmb.F90.s
 
 # Help Target
 help:
@@ -191,9 +272,18 @@ help:
 	@echo "... vertremap_base.o"
 	@echo "... vertremap_base.i"
 	@echo "... vertremap_base.s"
-	@echo "... vertremap_redux.o"
-	@echo "... vertremap_redux.i"
-	@echo "... vertremap_redux.s"
+	@echo "... vertremap_cs08.o"
+	@echo "... vertremap_cs08.i"
+	@echo "... vertremap_cs08.s"
+	@echo "... vertremap_new.o"
+	@echo "... vertremap_new.i"
+	@echo "... vertremap_new.s"
+	@echo "... vertremap_ngh.o"
+	@echo "... vertremap_ngh.i"
+	@echo "... vertremap_ngh.s"
+	@echo "... vertremap_nmb.o"
+	@echo "... vertremap_nmb.i"
+	@echo "... vertremap_nmb.s"
 .PHONY : help
 
 

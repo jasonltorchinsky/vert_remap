@@ -124,6 +124,45 @@ vert_remap/fast:
 .PHONY : vert_remap/fast
 
 #=============================================================================
+# Target rules for targets named conv_comb_mod
+
+# Build rule for target.
+conv_comb_mod: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 conv_comb_mod
+.PHONY : conv_comb_mod
+
+# fast build rule for target.
+conv_comb_mod/fast:
+	$(MAKE) -f src/conv_comb_mod/CMakeFiles/conv_comb_mod.dir/build.make src/conv_comb_mod/CMakeFiles/conv_comb_mod.dir/build
+.PHONY : conv_comb_mod/fast
+
+#=============================================================================
+# Target rules for targets named get_insecs_mod
+
+# Build rule for target.
+get_insecs_mod: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 get_insecs_mod
+.PHONY : get_insecs_mod
+
+# fast build rule for target.
+get_insecs_mod/fast:
+	$(MAKE) -f src/get_insecs_mod/CMakeFiles/get_insecs_mod.dir/build.make src/get_insecs_mod/CMakeFiles/get_insecs_mod.dir/build
+.PHONY : get_insecs_mod/fast
+
+#=============================================================================
+# Target rules for targets named mass_borrow_mod
+
+# Build rule for target.
+mass_borrow_mod: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 mass_borrow_mod
+.PHONY : mass_borrow_mod
+
+# fast build rule for target.
+mass_borrow_mod/fast:
+	$(MAKE) -f src/mass_borrow_mod/CMakeFiles/mass_borrow_mod.dir/build.make src/mass_borrow_mod/CMakeFiles/mass_borrow_mod.dir/build
+.PHONY : mass_borrow_mod/fast
+
+#=============================================================================
 # Target rules for targets named output_mod
 
 # Build rule for target.
@@ -171,6 +210,9 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
 	@echo "... vert_remap"
+	@echo "... conv_comb_mod"
+	@echo "... get_insecs_mod"
+	@echo "... mass_borrow_mod"
 	@echo "... output_mod"
 	@echo "... utils_mod"
 	@echo "... vertremap_mod"
