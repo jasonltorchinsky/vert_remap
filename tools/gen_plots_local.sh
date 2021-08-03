@@ -15,7 +15,7 @@ plterrcomp=yes
 # Set run variables
 ogrid_opts=(cub)
 tfunc_opts=(asr)
-alg_opts=(gmb)
+alg_opts=(on)
 norm_opts=(-1 1 2)
 
 for ogrid in ${ogrid_opts[@]}
@@ -31,7 +31,7 @@ do
 	               --plterr=$plterr --pltpwerr=$pltpwerr \
 		       --pltapprox=$pltapprox --pltmassdiff=$pltmassdiff \
 		       --pltmasserr=$pltmasserr --pltpwdiff=$pltpwdiff \
-		       --plterrcomp=$plterrcomp --norm=$norm  --alg=$alg
+		       --plterrcomp=$plterrcomp --norm=$norm  #--alg=$alg
             done
 	done
     done
